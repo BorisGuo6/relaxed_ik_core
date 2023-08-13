@@ -194,40 +194,13 @@ impl ObjectiveTrait for SelfCollision {
         // println!("start_pt_1:{} end_pt_1:{}  start_pt_2:{} end_pt_2:{} x: {:?}", start_pt_1, end_pt_1, start_pt_2, end_pt_2, x);
         
         
-        // if self.is_ee_link_0 && self.is_ee_link_1{
-        //     let mut shape_0 = shape::Capsule::new(start_pt_1, start_pt_2, 0.1);
-        // } 
-        // else {
-        //     let mut shape_0 = segment_1;
-        // }
-
-        let capsule_1 = shape::Capsule::new(start_pt_1 + (end_pt_1 - start_pt_1) * 0.2, end_pt_1 + (end_pt_1 - start_pt_1) * 0.5, link_radius * 1.0);
-        let capsule_2 = shape::Capsule::new(start_pt_2 + (end_pt_1 - start_pt_1) * 0.2, end_pt_2 + (end_pt_2 - start_pt_2) * 0.5, link_radius * 1.0);
+    
 
 
-        let mut dis: f64 = 0.0;
-        
-        if !self.is_ee_link_0 && !self.is_ee_link_1 {
-            dis = query::distance(&segment_pos, &segment_1, &segment_pos, &segment_2).unwrap() - 0.05;
-        } 
-
-        if self.is_ee_link_0 && !self.is_ee_link_1 {
-            dis = query::distance(&segment_pos, &capsule_1, &segment_pos, &segment_2).unwrap() - 0.025;
-        }
-        if !self.is_ee_link_0 && self.is_ee_link_1 {
-            dis = query::distance(&segment_pos, &segment_1, &segment_pos, &capsule_2).unwrap() - 0.025;
-        }
-        if self.is_ee_link_0 && self.is_ee_link_1 {
-            dis = query::distance(&segment_pos, &capsule_1, &segment_pos, &capsule_2).unwrap() - 0.025;
-        }
-        // if self.is_ee_link_0 {
-        //     println!("{:?} {:?}",self.arm_idx_0, self.arm_idx_1);
-        //     println!("{:?} -- {:?}",start_pt_1, end_pt_1);
-        // }
+        let mut dis = query::distance(&segment_pos, &segment_1, &segment_pos, &segment_2).unwrap() - link_radius;
         if dis < 0.0 {
             dis = 0.0
         }
-        
         // println!("dis:{:?}",dis);
         swamp_loss(dis, 0.02, 1.5, 60.0, 0.0001, 30)
     }
@@ -307,11 +280,9 @@ impl ObjectiveTrait for EnvCollision {
 pub struct MaximizeManipulability;
 impl ObjectiveTrait for MaximizeManipulability {
     fn call(&self, x: &[f64], v: &vars::RelaxedIKVars, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) -> f64 {
-        println!("x in: {:?}", x);
         let x_val = v.robot.get_manipulability_immutable(&x);
-        println!("manip: {x_val}");
         if x_val.is_nan() {
-            panic!("nan");
+            eprintln!("Manipulability is nan!");
         }
         groove_loss(x_val, 1.0, 2, 0.5, 0.1, 2)
     }
