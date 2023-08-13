@@ -152,7 +152,8 @@ impl ObjectiveMaster {
         let mut out = 0.0;
         let frames = vars.robot.get_frames_immutable(x);
         for i in 0..self.objectives.len() {
-            out += self.weight_priors[i] * self.objectives[i].call(x, vars, &frames);
+            let w = self.weight_priors[i] * self.objectives[i].call(x, vars, &frames);
+            out += w;
         }
         out
     }

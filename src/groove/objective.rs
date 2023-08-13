@@ -279,6 +279,7 @@ impl ObjectiveTrait for EnvCollision {
 
                     let segment = shape_nc::Segment::new(start_pt, end_pt);
                     let segment_pos = nalgebra::one();
+                    // println!("obs position{:?}",obstacle.position());
                     let dis = query_nc::distance(obstacle.position(), obstacle.shape().deref(), &segment_pos, &segment) - link_radius;
                     // println!("Obstacle: {}, Link: {}, Distance: {:?}", obstacle.data().name, i, dis);
                     sum += a / (dis + link_radius).powi(2);
@@ -304,7 +305,12 @@ impl ObjectiveTrait for EnvCollision {
 pub struct MaximizeManipulability;
 impl ObjectiveTrait for MaximizeManipulability {
     fn call(&self, x: &[f64], v: &vars::RelaxedIKVars, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) -> f64 {
+        println!("x in: {:?}", x);
         let x_val = v.robot.get_manipulability_immutable(&x);
+        println!("manip: {x_val}");
+        if x_val.is_nan() {
+            panic!("nan");
+        }
         groove_loss(x_val, 1.0, 2, 0.5, 0.1, 2)
     }
 
@@ -419,7 +425,8 @@ impl ObjectiveTrait for MatchEEPosGoals {
     fn call(&self, x: &[f64], v: &vars::RelaxedIKVars, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) -> f64 {
         let last_elem = frames[self.arm_idx].0.len() - 1;
         let x_val = ( frames[self.arm_idx].0[last_elem] - v.goal_positions[self.arm_idx] ).norm();
-
+        // println!("{:?},{:?}",frames[self.arm_idx].0[last_elem], v.goal_positions[self.arm_idx]);
+        // println!("dist x: {x_val}");
         groove_loss(x_val, 0., 2, 0.1, 10.0, 2)
     }
 
