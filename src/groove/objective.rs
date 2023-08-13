@@ -2,8 +2,9 @@ use crate::groove::{vars};
 use crate::utils_rust::transformations::{*};
 use nalgebra::geometry::{Translation3, UnitQuaternion, Quaternion};
 use std::cmp;
+use std::f64::consts::PI;
 use crate::groove::vars::RelaxedIKVars;
-use nalgebra::{Vector3, Isometry3, Point3};
+use nalgebra::{Vector3, Isometry3, Point3, Rotation, Unit};
 use std::ops::Deref;
 use time::PreciseTime;
 use parry3d_f64::{shape, query};
@@ -265,18 +266,19 @@ impl ObjectiveTrait for EnvCollision {
                 let obstacle = v.env_collision.world.objects.get(*handle).unwrap();
                 let last_elem = frames[self.arm_idx].0.len() - 1;
                 for i in 0..last_elem {
-                    let mut start_pt = Point3::from(frames[self.arm_idx].0[i]);
+                    let start_pt = Point3::from(frames[self.arm_idx].0[i]);
+                    let start_quat = frames[self.arm_idx].1[i];
                      // hard coded for ur5
                     // if i == last_elem - 1 {
                     //     start_pt = Point3::from(frames[self.arm_idx].0[i] + 0.2 * (frames[self.arm_idx].0[i] - frames[self.arm_idx].0[i + 1]));
                     // }
-                    let mut end_pt = Point3::from(frames[self.arm_idx].0[i + 1]);
+                    let end_pt = Point3::from(frames[self.arm_idx].0[i + 1]);
+                    
+                    //
+                    let end_quat = frames[self.arm_idx].1[i+1];
+                    
 
-                    // hard coded for movo
-                    if i == last_elem - 1 {
-                        end_pt += (end_pt - start_pt) * 0.3;
-                    }
-
+                    
                     let segment = shape_nc::Segment::new(start_pt, end_pt);
                     let segment_pos = nalgebra::one();
                     // println!("obs position{:?}",obstacle.position());
