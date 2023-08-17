@@ -16,6 +16,7 @@ pub struct RelaxedIK {
     pub vars: RelaxedIKVars,
     pub om: ObjectiveMaster,
     pub groove: OptimizationEngineOpen,
+    pub path_to_setting: String,
 }
 
 impl RelaxedIK {
@@ -37,13 +38,13 @@ impl RelaxedIK {
 
         let groove = OptimizationEngineOpen::new(vars.robot.num_dofs.clone());
         
-        Self{vars, om, groove}
+        Self{vars, om, groove, path_to_setting: path_to_setting.to_string()}
     }
 
     pub fn reset(&mut self, x: Vec<f64>) {
         self.vars.reset( x.clone());
         let frames = self.vars.robot.get_frames_immutable(&x.clone());
-        self.vars.env_collision.reset(&frames);
+        self.vars.reset_env_collision(&self.path_to_setting, &frames);
         self.vars.update_collision_world();
     }
 
@@ -52,7 +53,7 @@ impl RelaxedIK {
 
         let in_collision = self.vars.update_collision_world();
 
-        if !false {
+        if !in_collision {
             self.groove.optimize(&mut out_x, &self.vars, &self.om, 100);
 
             // let frames = self.vars.robot.get_frames_immutable(&out_x);

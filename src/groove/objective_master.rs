@@ -39,31 +39,31 @@ impl ObjectiveMaster {
         // println!("disabled_collisions: {:?}", disabled_collisions);
         for i in 0..num_chains {
             if is_active_chain[i] {
-                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 0)));
-                // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
-                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 1)));
-                // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
-                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 2)));
-                // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
-                // objectives.push(Box::new(MatchEERotaDoF::new(i, 0)));
-                // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
-                // objectives.push(Box::new(MatchEERotaDoF::new(i, 1)));
-                // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
-                // objectives.push(Box::new(MatchEERotaDoF::new(i, 2)));
-                // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
-
-                objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
+                objectives.push(Box::new(MatchEEPosiDoF::new(i, 0)));
                 weight_priors.push(50.0);
-                weight_names.push(String::from("eepos"));
-                objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
-                weight_priors.push(30.0);
-                weight_names.push(String::from("eequat"));
+                weight_names.push(String::from("eepos_x"));
+                objectives.push(Box::new(MatchEEPosiDoF::new(i, 1)));
+                weight_priors.push(50.0);
+                weight_names.push(String::from("eepos_y"));
+                objectives.push(Box::new(MatchEEPosiDoF::new(i, 2)));
+                weight_priors.push(50.0);
+                weight_names.push(String::from("eepos_z"));
+                objectives.push(Box::new(MatchEERotaDoF::new(i, 0)));
+                weight_priors.push(10.0);
+                weight_names.push(String::from("eequat_x"));
+                objectives.push(Box::new(MatchEERotaDoF::new(i, 1)));
+                weight_priors.push(10.0);
+                weight_names.push(String::from("eequat_y"));
+                objectives.push(Box::new(MatchEERotaDoF::new(i, 2)));
+                weight_priors.push(10.0);
+                weight_names.push(String::from("eequat_z"));
+
+                // objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
+                // weight_priors.push(50.0);
+                // weight_names.push(String::from("eepos"));
+                // objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
+                // weight_priors.push(30.0);
+                // weight_names.push(String::from("eequat"));
             }
             objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i])));
             weight_priors.push(5.0);

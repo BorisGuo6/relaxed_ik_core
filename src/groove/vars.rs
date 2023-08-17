@@ -186,6 +186,11 @@ impl RelaxedIKVars {
             chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip}
     }
     
+    pub fn reset_env_collision(&mut self, path_to_setting: &str, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) {
+        let env_collision_file = EnvCollisionFileParser::from_yaml_path(path_to_setting.to_string());
+        let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
+        self.env_collision = env_collision;
+    }
     // for webassembly
     pub fn from_jsvalue( configs: VarsConstructorData, urdf: &str, srdf: &str) -> Self  {
 
@@ -247,6 +252,8 @@ impl RelaxedIKVars {
 
         self.init_ee_positions = init_ee_positions.clone();
         self.init_ee_quats = init_ee_quats.clone();
+        self.goal_positions = init_ee_positions.clone();
+        self.goal_quats = init_ee_quats.clone();
         // self.update_collision_world();
         println!("core: reset -> {:?}", init_state);
         // println!("self.init_ee_positions: {:?}",self.init_ee_positions);

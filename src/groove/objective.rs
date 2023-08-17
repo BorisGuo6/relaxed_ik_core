@@ -308,11 +308,17 @@ impl ObjectiveTrait for EnvCollision {
                         };
 
                         if i == last_elem - 1 && self.arm_idx == 0 {
-                            println!("dis_right_fingers: {:?}",dis);
+                            // println!("dis_right_fingers: {:?}",dis);
                         }
 
                     // println!("Obstacle: {}, Link: {}, Distance: {:?}", obstacle.data().name, i, dis);
-                    sum += a / (dis + link_radius).powi(2);
+                    if i == last_elem - 1 {
+                        sum += a / (dis + link_radius).powi(2);
+                    }
+                    else {
+                        sum += a / (dis + link_radius_finger).powi(2);
+                    }   
+                    
                 }
                 // println!("OBJECTIVE -> {:?}, Sum: {:?}", obstacle.data().name, sum);
                 x_val += sum;
@@ -456,7 +462,7 @@ impl ObjectiveTrait for MatchEEPosGoals {
         let last_elem = frames[self.arm_idx].0.len() - 1 - self.chain_idx_offset;
         let x_val = ( frames[self.arm_idx].0[last_elem] - v.goal_positions[self.arm_idx] ).norm();
         // println!("{:?},{:?}",frames[self.arm_idx].0[last_elem], v.goal_positions[self.arm_idx]);
-        // println!("dist x: {x_val}");
+        println!("arm {} dist x: {}", self.arm_idx, x_val);
         groove_loss(x_val, 0., 2, 0.1, 10.0, 2)
     }
 
