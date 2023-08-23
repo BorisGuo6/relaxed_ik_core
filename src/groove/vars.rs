@@ -1,6 +1,7 @@
 use nalgebra::{UnitQuaternion, Vector3, Vector6, Quaternion, Point3};
 use std::f64::consts::PI;
 use std::collections::{BTreeSet, HashSet};
+use crate::relaxed_ik::Opt;
 use crate::spacetime::robot::Robot;
 use crate::utils_rust::file_utils::{*};
 use crate::utils_rust::yaml_utils::{*};
@@ -37,7 +38,7 @@ pub struct VarsConstructorData {
 
 pub struct RelaxedIKVars {
     pub robot: Robot,
-    pub srdf_robot: SRDFRobot,
+    pub srdf_robot: Option<SRDFRobot>,
     pub init_state: Vec<f64>,
     pub xopt: Vec<f64>,
     pub prev_state: Vec<f64>,
@@ -79,15 +80,49 @@ impl RelaxedIKVars {
         let res = file.read_to_string(&mut contents).unwrap();
         let docs = YamlLoader::load_from_str(contents.as_str()).unwrap();
         let settings = &docs[0];
+        
+        let urdf_path = settings["urdf"].as_str().unwrap();
+        let path_to_urdf =  
+            if urdf_path.chars().nth(0).unwrap() == '/' { // is absolute path
+                urdf_path.to_string()
+            } else {
+                path_to_src.clone() + "configs/urdfs/" + urdf_path
+            };
+        
 
-        let path_to_urdf = path_to_src.clone() + "configs/urdfs/" + settings["urdf"].as_str().unwrap();
-        let path_to_srdf = path_to_src.clone() + "configs/urdfs/" + settings["srdf"].as_str().unwrap();
+        let srdf_path = settings["srdf"].as_str();
+        let path_to_srdf =  
+        match srdf_path {
+            Some(path) => {
+                if path.chars().nth(0).unwrap() == '/' { // is absolute path
+                    Some(path.to_string())
+                } else {
+                    Some(path_to_src.clone() + "configs/urdfs/" + path)
+                }
+            }
+            None => {
+                None
+            }
+        };
+
+        
 
         println!("RelaxedIK is using below URDF file: {}", path_to_urdf);
-        println!("RelaxedIK is using below SRDF file: {}", path_to_srdf);
-
-        let srdf_file =  fs::read_to_string(path_to_srdf).unwrap();
-        let srdf_robot: SRDFRobot = serde_xml_rs::from_str(&srdf_file).unwrap();    
+        if let Some(p) = &path_to_srdf {
+            println!("RelaxedIK is using below SRDF file: {}", p);
+        }
+        
+        let srdf_robot: Option<SRDFRobot> = 
+        match path_to_srdf {
+            Some(path) => {
+                let srdf_file =  fs::read_to_string(path).unwrap();
+                Some(serde_xml_rs::from_str(&srdf_file).unwrap())
+            }
+            None => {
+                None
+            }
+        };
+          
 
         let chain = k::Chain::<f64>::from_urdf_file(path_to_urdf.clone()).unwrap();
 
@@ -202,7 +237,7 @@ impl RelaxedIKVars {
         }
 
         let robot = Robot::from_urdf(urdf, &configs.base_links, &configs.ee_links, &configs.chains_def);
-        let srdf_robot: SRDFRobot = serde_xml_rs::from_str(srdf).unwrap();    
+        let srdf_robot: Option<SRDFRobot> = Some(serde_xml_rs::from_str(srdf).unwrap());    
 
         let mut init_ee_positions: Vec<Vector3<f64>> = Vec::new();
         let mut init_ee_quats: Vec<UnitQuaternion<f64>> = Vec::new();
@@ -408,16 +443,19 @@ impl RelaxedIKVars {
 
     pub fn get_collision_disabled_set(&self) -> BTreeSet<(String, String)> {
         let mut is_disabled: BTreeSet<(String, String)> = BTreeSet::new();
-        for collision in &self.srdf_robot.disable_collisions {
-            let l1: String = collision.link1.clone();
-            let l2: String = collision.link2.clone();
-            if l1 < l2 {
-                is_disabled.insert((l1, l2));
-            }
-            else {
-                is_disabled.insert((l2, l1));
+        if let Some(srdf_robot) = &self.srdf_robot {
+            for collision in &srdf_robot.disable_collisions{
+                let l1: String = collision.link1.clone();
+                let l2: String = collision.link2.clone();
+                if l1 < l2 {
+                    is_disabled.insert((l1, l2));
+                }
+                else {
+                    is_disabled.insert((l2, l1));
+                }
             }
         }
+        
         is_disabled
     }
 }

@@ -20,12 +20,12 @@ obstacles:
       rotation: [0.0,0.0,0.0]
       animation: static
   point_cloud:
-    # - name: bunny
-    #   scale: [2.0,2.0,2.0]
-    #   translation: [1.0,-0.5,0.9]
-    #   rotation: [1.57,0.0,-1.57]
-    #   animation: static
-    #   file: bunny
+    - name: bunny
+      scale: [2.0,2.0,2.0]
+      translation: [1.0,-0.5,0.9]
+      rotation: [1.57,0.0,-1.57]
+      animation: static
+      file: bunny
 
 
 # For trajectory tracing
