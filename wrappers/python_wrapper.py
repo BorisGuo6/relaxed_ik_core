@@ -2,6 +2,7 @@
 
 import ctypes
 import os
+from typing import List
 
 class Opt(ctypes.Structure):
     _fields_ = [("data", ctypes.POINTER(ctypes.c_double)), ("length", ctypes.c_int)]
@@ -53,7 +54,7 @@ class RelaxedIKRust:
     def __exit__(self, exc_type, exc_value, traceback):
         lib.relaxed_ik_free(self.obj)
     
-    def solve_position(self, positions, orientations, tolerances):
+    def solve_position(self, positions, orientations, tolerances) -> List[float]:
         '''
         Assuming the robot has N end-effectors
         positions (1D array with length as 3*N): list of end-effector positions
@@ -72,7 +73,7 @@ class RelaxedIKRust:
         xopt = lib.solve_position(self.obj, pos_arr, len(pos_arr), quat_arr, len(quat_arr), tole_arr, len(tole_arr))
         return xopt.data[:xopt.length]
     
-    def solve_velocity(self, linear_velocities, angular_velocities, tolerances):
+    def solve_velocity(self, linear_velocities, angular_velocities, tolerances) -> List[float]:
         '''
         Assuming the robot has N end-effectors
         linear_velocities (1D array with length as 3*N): list of end-effector linear velocities
@@ -91,20 +92,20 @@ class RelaxedIKRust:
         xopt = lib.solve_velocity(self.obj, linear_arr, len(linear_arr), angular_arr, len(angular_arr), tole_arr, len(tole_arr))
         return xopt.data[:xopt.length]
     
-    def reset(self, joint_state):
+    def reset(self, joint_state) -> None:
         js_arr = (ctypes.c_double * len(joint_state))()
         for i in range(len(joint_state)):
             js_arr[i] = joint_state[i]
         lib.reset(self.obj, js_arr, len(js_arr))
     
-    def get_jointstate_loss(self, joint_state) -> float:
+    def get_jointstate_loss(self, joint_state) -> List[float]:
         js_arr = (ctypes.c_double * len(joint_state))()
         for i in range(len(joint_state)):
             js_arr[i] = joint_state[i]
         losses = lib.get_jointstate_loss(self.obj, js_arr, len(js_arr))
         return losses.data[:losses.length]
         
-    def dynamic_obstacle_cb(self, marker_name: str, pose):
+    def dynamic_obstacle_cb(self, marker_name: str, pose) -> None:
         pos_arr = (ctypes.c_double * 3)()
         quat_arr = (ctypes.c_double * 4)()
         pos_arr[0]  = pose.position.x
@@ -120,16 +121,16 @@ class RelaxedIKRust:
         
         lib.dynamic_obstacle_cb(self.obj, c_name, pos_arr, quat_arr)
         
-    def get_objective_weight_names(self):
+    def get_objective_weight_names(self) -> List[str]:
         string_array_ptr = lib.get_objective_weight_names(self.obj)
         strings = [string_array_ptr.contents.data[i].decode('utf-8') for i in range(string_array_ptr.contents.len)]
         return strings
     
-    def get_objective_weight_priors(self):
+    def get_objective_weight_priors(self) -> List[float]:
         w = lib.get_objective_weight_priors(self.obj)
         return w.data[:w.length]
     
-    def set_objective_weight_priors(self, w):
+    def set_objective_weight_priors(self, w) -> None:
         w_arr = (ctypes.c_double * len(w))()
         for i in range(len(w)):
             w_arr[i] = w[i]
