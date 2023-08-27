@@ -107,7 +107,7 @@ impl RelaxedIKEnvCollision {
                 dyn_obstacle_handles.push((plane_handle.0, plane_handle.1.data().name.clone()));
             }
         }
-
+        // println!("sphere_obstacles: {:?}",sphere_obstacles);
         for i in 0..sphere_obstacles.len() {
             let sphere_obs = &sphere_obstacles[i];
             let sphere = ShapeHandle::new(Ball::new(sphere_obs.radius));
@@ -146,7 +146,7 @@ impl RelaxedIKEnvCollision {
                 dyn_obstacle_handles.push((pcd_handle.0, pcd_handle.1.data().name.clone()));
             }
         }
-        
+        // println!("active obs: {:?}",active_obstacles);
         return Self{world, link_radius, link_handles, dyn_obstacle_handles, active_pairs, active_obstacles};
     }
 

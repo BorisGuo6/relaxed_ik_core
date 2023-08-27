@@ -299,8 +299,11 @@ impl RelaxedIKVars {
 
     pub fn update_collision_world(&mut self) -> bool {
         let frames = self.robot.get_frames_immutable(&self.xopt);
+        // println!("&self.xopt: {:?}", &self.xopt);
         self.env_collision.update_links(&frames);
+        self.env_collision.world.update();
         for event in self.env_collision.world.proximity_events() {
+            // panic!("test");
             let c1 = self.env_collision.world.objects.get(event.collider1).unwrap();
             let c2 = self.env_collision.world.objects.get(event.collider2).unwrap();
             if event.new_status == ncollide3d::query::Proximity::Intersecting {
@@ -358,10 +361,11 @@ impl RelaxedIKVars {
                     }
                 } 
             }
+            // println!("active pairs:");
             // self.print_active_pairs();
         }
-
-        self.env_collision.world.update();
+        // moved update before the loop for now, see if everything still works.
+        // self.env_collision.world.upda te();
 
         let link_radius = self.env_collision.link_radius;
         let link_radius_finger = 0.01;
