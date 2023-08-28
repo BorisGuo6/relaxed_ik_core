@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::groove::objective::*;
 use crate::groove::vars::RelaxedIKVars;
 use std::collections::BTreeSet;
@@ -39,31 +40,31 @@ impl ObjectiveMaster {
         // println!("disabled_collisions: {:?}", disabled_collisions);
         for i in 0..num_chains {
             if is_active_chain[i] {
-                objectives.push(Box::new(MatchEEPosiDoF::new(i, 0)));
-                weight_priors.push(50.0);
-                weight_names.push(String::from("eepos_x"));
-                objectives.push(Box::new(MatchEEPosiDoF::new(i, 1)));
-                weight_priors.push(50.0);
-                weight_names.push(String::from("eepos_y"));
-                objectives.push(Box::new(MatchEEPosiDoF::new(i, 2)));
-                weight_priors.push(50.0);
-                weight_names.push(String::from("eepos_z"));
-                objectives.push(Box::new(MatchEERotaDoF::new(i, 0)));
-                weight_priors.push(10.0);
-                weight_names.push(String::from("eequat_x"));
-                objectives.push(Box::new(MatchEERotaDoF::new(i, 1)));
-                weight_priors.push(10.0);
-                weight_names.push(String::from("eequat_y"));
-                objectives.push(Box::new(MatchEERotaDoF::new(i, 2)));
-                weight_priors.push(10.0);
-                weight_names.push(String::from("eequat_z"));
-
-                // objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
+                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 0)));
                 // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
-                // objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
-                // weight_priors.push(30.0);
-                // weight_names.push(String::from("eequat"));
+                // weight_names.push(String::from("eepos_x"));
+                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 1)));
+                // weight_priors.push(50.0);
+                // weight_names.push(String::from("eepos_y"));
+                // objectives.push(Box::new(MatchEEPosiDoF::new(i, 2)));
+                // weight_priors.push(50.0);
+                // weight_names.push(String::from("eepos_z"));
+                // objectives.push(Box::new(MatchEERotaDoF::new(i, 0)));
+                // weight_priors.push(10.0);
+                // weight_names.push(String::from("eequat_x"));
+                // objectives.push(Box::new(MatchEERotaDoF::new(i, 1)));
+                // weight_priors.push(10.0);
+                // weight_names.push(String::from("eequat_y"));
+                // objectives.push(Box::new(MatchEERotaDoF::new(i, 2)));
+                // weight_priors.push(10.0);
+                // weight_names.push(String::from("eequat_z"));
+
+                objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
+                weight_priors.push(200.0);
+                weight_names.push(String::from("eepos"));
+                objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
+                weight_priors.push(50.0);
+                weight_names.push(String::from("eequat"));
             }
             objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i])));
             weight_priors.push(5.0);
@@ -137,8 +138,18 @@ impl ObjectiveMaster {
             }
         }
 
-        
+
         Self{objectives, num_chains, weight_priors, weight_names, lite: false, finite_diff_grad: false}
+    }
+
+    pub fn set_env_collision_tip_offset(&mut self, offset: usize) {
+        println!("set env collision tip offset to {}", offset);
+        for objective in &mut self.objectives {
+            let any_ref = objective.as_any_mut();
+            if let Some(env_collision_ref_mut) = any_ref.downcast_mut::<EnvCollision>() {
+                env_collision_ref_mut.update_tip_offset(offset);
+            }
+        }
     }
 
     pub fn call(&self, x: &[f64], vars: &RelaxedIKVars) -> f64 {

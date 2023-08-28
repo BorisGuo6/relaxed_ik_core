@@ -308,6 +308,7 @@ impl RobotCollisionSpecFileParser {
 #[derive(Clone, Debug)]
 pub struct EnvCollisionFileParser {
     pub robot_link_radius: f64,
+    pub robot_link_radius_finger: f64,
     pub cuboids: Vec<CuboidEnv>,
     pub spheres: Vec<SphereEnv>,
     pub pcds:Vec<PCEnv>
@@ -323,6 +324,7 @@ impl EnvCollisionFileParser {
         let point_cloud_option = doc["obstacles"]["point_cloud"].as_vec();
 
         let robot_link_radius = doc["link_radius"].as_f64().unwrap();
+        let robot_link_radius_finger = doc["link_radius_finger"].as_f64().unwrap();
 
         let mut cuboids: Vec<CuboidEnv> = Vec::new();
         let mut spheres: Vec<SphereEnv> = Vec::new();
@@ -425,7 +427,7 @@ impl EnvCollisionFileParser {
             }
         }
 
-        Self{robot_link_radius, cuboids, spheres, pcds}
+        Self{robot_link_radius, robot_link_radius_finger, cuboids, spheres, pcds}
     }
 }
 

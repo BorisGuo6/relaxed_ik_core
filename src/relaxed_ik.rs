@@ -50,7 +50,6 @@ impl RelaxedIK {
 
     pub fn solve(&mut self) -> Vec<f64> {
         let mut out_x = self.vars.xopt.clone();
-
         let in_collision = self.vars.update_collision_world();
 
         if !in_collision {

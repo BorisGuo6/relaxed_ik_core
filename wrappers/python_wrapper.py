@@ -28,16 +28,21 @@ lib.solve_velocity.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes
 lib.solve_velocity.restype = Opt
 lib.reset.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
 lib.reset.restype = None
+
 lib.get_jointstate_loss.argtypes = [ctypes.POINTER(RelaxedIKS)]
 lib.get_jointstate_loss.restype = Opt
+
 lib.get_objective_weight_names.argtypes = [ctypes.POINTER(RelaxedIKS)]
 lib.get_objective_weight_names.restype = ctypes.POINTER(StringArray)
 
 lib.get_objective_weight_priors.argtypes = [ctypes.POINTER(RelaxedIKS)]
 lib.get_objective_weight_priors.restype  = Opt
+
 lib.set_objective_weight_priors.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
 lib.set_objective_weight_priors.restype  = None
 
+lib.set_env_collision_tip_offset.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.c_int]
+lib.set_env_collision_tip_offset.restype  = None
 
 class RelaxedIKRust:
     def __init__(self, setting_file_path = None):
@@ -130,12 +135,15 @@ class RelaxedIKRust:
         w = lib.get_objective_weight_priors(self.obj)
         return w.data[:w.length]
     
-    def set_objective_weight_priors(self, w) -> None:
+    def set_objective_weight_priors(self, w: List[float]) -> None:
         w_arr = (ctypes.c_double * len(w))()
         for i in range(len(w)):
             w_arr[i] = w[i]
         lib.set_objective_weight_priors(self.obj, w_arr, len(w_arr))
     
+    def set_env_collision_tip_offset(self, offset: int) -> None:
+        offset_c_int = ctypes.c_int(offset)
+        lib.set_env_collision_tip_offset(self.obj, offset_c_int)
     
 if __name__ == '__main__':
     pass

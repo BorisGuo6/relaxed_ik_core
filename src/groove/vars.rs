@@ -55,6 +55,7 @@ pub struct RelaxedIKVars {
     pub arm_group: Vec<usize>,
     pub collision_starting_indices: Vec<usize>,
     pub num_links_ee_to_tip: i64,
+    pub env_collision_tip_offset: usize
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,9 +131,13 @@ impl RelaxedIKVars {
         let ee_links_arr = settings["ee_links"].as_vec().unwrap();
         let chains_def_arr = settings["chains_def"].as_vec().unwrap();
         let is_active_chain_arr = settings["is_active_chain"].as_vec().unwrap();
-        let num_links_ee_to_tip = settings["num_links_ee_to_tip"].as_i64().unwrap();
+        // let num_links_ee_to_tip = settings["num_links_ee_to_tip"].as_i64().unwrap();
+        let num_links_ee_to_tip = 0; // unused. will probably remove in the future.
+        
+        let env_collision_tip_offset: usize = 0;
         let enforce_ja_arr = settings["enforce_joint_angles"].as_vec().unwrap();
         let arm_group_arr = settings["arm_group"].as_vec().unwrap();
+         
 
         let num_chains = base_links_arr.len();
         
@@ -218,7 +223,7 @@ impl RelaxedIKVars {
         RelaxedIKVars{robot, srdf_robot, init_state: starting_config.clone(), xopt: starting_config.clone(),
             prev_state: starting_config.clone(), prev_state2: starting_config.clone(), prev_state3: starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip}
+            chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip, env_collision_tip_offset}
     }
     
     pub fn reset_env_collision(&mut self, path_to_setting: &str, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) {
@@ -253,12 +258,12 @@ impl RelaxedIKVars {
         let frames = robot.get_frames_immutable(&configs.starting_config.clone());
         let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
 
-
+        let env_collision_tip_offset: usize = 0;
 
         RelaxedIKVars{robot, srdf_robot, init_state: configs.starting_config.clone(), xopt: configs.starting_config.clone(),
             prev_state: configs.starting_config.clone(), prev_state2: configs.starting_config.clone(), prev_state3: configs.starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(), collision_starting_indices:configs.collision_starting_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone()}
+            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(), collision_starting_indices:configs.collision_starting_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone(), env_collision_tip_offset}
 
     }
 
@@ -368,7 +373,7 @@ impl RelaxedIKVars {
         // self.env_collision.world.upda te();
 
         let link_radius = self.env_collision.link_radius;
-        let link_radius_finger = 0.01;
+        let link_radius_finger = self.env_collision.link_radius_finger;
         let penalty_cutoff: f64 = link_radius * 2.0;
         let a = penalty_cutoff.powi(2);
         let filter_cutoff = 3;
@@ -379,7 +384,7 @@ impl RelaxedIKVars {
                 let obstacle = self.env_collision.world.objects.get(*key).unwrap();
                 // println!("Obstacle: {:?}", obstacle.data());
                 let mut sum: f64 = 0.0;
-                let last_elem = frames[arm_idx].0.len() - 1;
+                let last_elem = frames[arm_idx].0.len() - 1 - self.env_collision_tip_offset;
                 for j in 0..last_elem {
                     let start_pt = Point3::from(frames[arm_idx].0[j]);
                     let end_pt = Point3::from(frames[arm_idx].0[j + 1]);
@@ -407,8 +412,14 @@ impl RelaxedIKVars {
 
                     // println!("VARS -> {:?}, Link{}, Distance: {:?}", obstacle.data(), j, dis);
                     if dis > 0.0 {
-                        sum += a / (dis + link_radius).powi(2);
+                        if j== last_elem - 1 {
+                            sum += a / (dis + link_radius_finger).powi(2);
+                        }
+                        else {
+                            sum += a / (dis + link_radius).powi(2);
+                        }
                     } else if /*self.objective_mode != "noECA"*/ true {
+                        println!("arm {} joint {}-{} collision!", arm_idx, j, j+1);
                         return true;
                     } else {
                         break;

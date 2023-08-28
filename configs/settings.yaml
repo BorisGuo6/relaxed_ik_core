@@ -2,6 +2,7 @@ urdf: simplified_movo.urdf
 srdf: simplified_movo.srdf
 
 link_radius: 0.05 
+link_radius_finger: 0.01
 base_links:
   - base_link
   - base_link

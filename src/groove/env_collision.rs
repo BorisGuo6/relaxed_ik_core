@@ -38,6 +38,7 @@ impl CollisionObjectData {
 pub struct RelaxedIKEnvCollision {
     pub world: CollisionWorld<f64, CollisionObjectData>,
     pub link_radius: f64,
+    pub link_radius_finger: f64,
     pub link_handles: Vec<Vec<CollisionObjectSlabHandle>>,
     pub dyn_obstacle_handles: Vec<(CollisionObjectSlabHandle, String)>,
     pub active_pairs: Vec<BTreeMap<CollisionObjectSlabHandle, Vec<CollisionObjectSlabHandle>>>,
@@ -50,6 +51,7 @@ impl RelaxedIKEnvCollision {
         frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>,
     ) -> Self {
         let link_radius = env_collision_file.robot_link_radius;
+        let link_radius_finger = env_collision_file.robot_link_radius_finger;
         let plane_obstacles = env_collision_file.cuboids;
         let sphere_obstacles = env_collision_file.spheres;
         let pcd_obstacles = env_collision_file.pcds;
@@ -147,7 +149,7 @@ impl RelaxedIKEnvCollision {
             }
         }
         // println!("active obs: {:?}",active_obstacles);
-        return Self{world, link_radius, link_handles, dyn_obstacle_handles, active_pairs, active_obstacles};
+        return Self{world, link_radius, link_radius_finger, link_handles, dyn_obstacle_handles, active_pairs, active_obstacles};
     }
 
     pub fn update_links(
