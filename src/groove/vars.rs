@@ -226,6 +226,18 @@ impl RelaxedIKVars {
             chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip, env_collision_tip_offset}
     }
     
+    pub fn update_enforce_ja(&mut self, enforce_joint_angles: &[f64]) {
+        // enforce joint angles by modifying joint limits
+        let eps: f64 = 0.1;
+        for i in 0..self.robot.num_dofs {
+            if enforce_joint_angles[i] > -PI && enforce_joint_angles[i] < PI {
+                self.robot.lower_joint_limits[i] = enforce_joint_angles[i] - eps;
+                self.robot.upper_joint_limits[i] = enforce_joint_angles[i] + eps;
+            } 
+        }
+        println!("new ja limits:\n{:?}\n{:?}", self.robot.lower_joint_limits, self.robot.upper_joint_limits);
+    }
+
     pub fn reset_env_collision(&mut self, path_to_setting: &str, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) {
         let env_collision_file = EnvCollisionFileParser::from_yaml_path(path_to_setting.to_string());
         let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);

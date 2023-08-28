@@ -44,6 +44,9 @@ lib.set_objective_weight_priors.restype  = None
 lib.set_env_collision_tip_offset.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.c_int]
 lib.set_env_collision_tip_offset.restype  = None
 
+lib.update_enforce_joint_angles.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+lib.update_enforce_joint_angles.restype  = None
+
 class RelaxedIKRust:
     def __init__(self, setting_file_path = None):
         '''
@@ -144,6 +147,12 @@ class RelaxedIKRust:
     def set_env_collision_tip_offset(self, offset: int) -> None:
         offset_c_int = ctypes.c_int(offset)
         lib.set_env_collision_tip_offset(self.obj, offset_c_int)
+        
+    def update_enforce_joint_angles(self, ja: List[float]) -> None:
+        ja_arr = (ctypes.c_double * len(ja))()
+        for i in range(len(ja)):
+            ja_arr[i] = ja[i]
+        lib.update_enforce_joint_angles(self.obj, ja_arr, len(ja_arr))
     
 if __name__ == '__main__':
     pass

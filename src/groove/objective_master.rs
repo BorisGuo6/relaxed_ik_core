@@ -60,11 +60,11 @@ impl ObjectiveMaster {
                 // weight_names.push(String::from("eequat_z"));
 
                 objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
-                weight_priors.push(200.0);
-                weight_names.push(String::from("eepos"));
-                objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
                 weight_priors.push(50.0);
-                weight_names.push(String::from("eequat"));
+                weight_names.push(format!("eepos_{}",i));
+                objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
+                weight_priors.push(30.0);
+                weight_names.push(format!("eequat_{}",i));
             }
             objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i])));
             weight_priors.push(5.0);
@@ -74,7 +74,7 @@ impl ObjectiveMaster {
 
         for j in 0..num_dofs {
             // println!("JointLimitIdx:{:?}",j);
-            objectives.push(Box::new(EachJointLimits::new(j))); weight_priors.push(1.0);
+            objectives.push(Box::new(EachJointLimits::new(j))); weight_priors.push(0.1);
             weight_names.push(String::from("jointlimit"));
         }
 
@@ -99,7 +99,7 @@ impl ObjectiveMaster {
                     
                     collisions.insert(link_pair);
                     objectives.push(Box::new(SelfCollision::new(i, i,  j, k, false, false))); 
-                    weight_priors.push(0.1);
+                    weight_priors.push(0.5);
                     weight_names.push(String::from("selfcollision"));
                 }
             }
@@ -125,10 +125,10 @@ impl ObjectiveMaster {
                         collisions.insert(link_pair);
                         objectives.push(Box::new(SelfCollision::new(a1, a2,  i, j, is_ee_link_0, is_ee_link_1))); 
                         if is_ee_link_0 && is_ee_link_1 {
-                            weight_priors.push(0.05);
+                            weight_priors.push(0.5);
                             weight_names.push(String::from("selfcollision_ee"));
                         } else {
-                            weight_priors.push(0.1);
+                            weight_priors.push(0.5);
                             weight_names.push(String::from("selfcollision"));
                         }
                         
