@@ -304,16 +304,16 @@ pub unsafe extern "C" fn set_objective_weight_priors(ptr: *mut RelaxedIK, weight
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn set_env_collision_tip_offset(ptr: *mut RelaxedIK, offset: c_int) {
+#[no_mangle]    
+pub unsafe extern "C" fn set_collision_end_indices(ptr: *mut RelaxedIK, end_indices: *const c_int, len: c_int) {
     let relaxed_ik = unsafe {
         assert!(!ptr.is_null());
         &mut *ptr
     };
-    assert!(offset as i64 >= 0, "Disabled collision offset from tip should be non-negative.");
-
-    relaxed_ik.vars.env_collision_tip_offset = offset as usize;
-    relaxed_ik.om.set_env_collision_tip_offset(offset as usize);
+    let indices_slice= std::slice::from_raw_parts(end_indices, len as usize);
+    let indices_vec: Vec<usize> = indices_slice.iter().map(|item| {*item as usize}).collect();
+    relaxed_ik.vars.update_collision_end_indices(&indices_vec);
+    relaxed_ik.om.update_collision_end_indices(&indices_vec);
 }
 
 #[no_mangle]

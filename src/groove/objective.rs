@@ -261,12 +261,12 @@ impl ObjectiveTrait for SelfCollision {
 pub struct EnvCollision {
     pub arm_idx: usize,
     pub collision_start_idx: usize,  // index in arm chain where collision will start
-    pub collision_tip_offset: usize
+    pub collision_end_idx: usize
 }
 impl EnvCollision {
-    pub fn new(arm_idx: usize, collision_start_idx: usize) -> Self {Self{arm_idx, collision_start_idx, collision_tip_offset: 0}}
-    pub fn update_tip_offset(&mut self, offset: usize) {
-        self.collision_tip_offset = offset;
+    pub fn new(arm_idx: usize, collision_start_idx: usize, collision_end_idx:usize) -> Self {Self{arm_idx, collision_start_idx, collision_end_idx}}
+    pub fn update_collision_end_idx(&mut self, collision_ending_indices: &[usize]) {
+        self.collision_end_idx = collision_ending_indices[self.arm_idx];
     }
 }
 impl ObjectiveTrait for EnvCollision {
@@ -295,7 +295,7 @@ impl ObjectiveTrait for EnvCollision {
             if let Some(handle) = option {
                 let mut sum: f64 = 0.0;
                 let obstacle = v.env_collision.world.objects.get(*handle).unwrap();
-                let last_elem = frames[self.arm_idx].0.len() - 1 - self.collision_tip_offset;
+                let last_elem = self.collision_end_idx - 1;
                 for i in self.collision_start_idx..last_elem {
                     let start_pt = Point3::from(frames[self.arm_idx].0[i]);
                     let start_quat = frames[self.arm_idx].1[i];

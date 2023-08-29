@@ -15,7 +15,6 @@ class StringArray(ctypes.Structure):
     _fields_ = [("data", ctypes.POINTER(ctypes.c_char_p)),
                 ("len", ctypes.c_size_t)]
     
-    
 dir_path = os.path.dirname(os.path.realpath(__file__))
 lib = ctypes.cdll.LoadLibrary(dir_path + '/../target/debug/librelaxed_ik_lib.so')
 
@@ -41,8 +40,8 @@ lib.get_objective_weight_priors.restype  = Opt
 lib.set_objective_weight_priors.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
 lib.set_objective_weight_priors.restype  = None
 
-lib.set_env_collision_tip_offset.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.c_int]
-lib.set_env_collision_tip_offset.restype  = None
+lib.set_collision_end_indices.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+lib.set_collision_end_indices.restype  = None
 
 lib.update_enforce_joint_angles.argtypes = [ctypes.POINTER(RelaxedIKS), ctypes.POINTER(ctypes.c_double), ctypes.c_int]
 lib.update_enforce_joint_angles.restype  = None
@@ -144,9 +143,11 @@ class RelaxedIKRust:
             w_arr[i] = w[i]
         lib.set_objective_weight_priors(self.obj, w_arr, len(w_arr))
     
-    def set_env_collision_tip_offset(self, offset: int) -> None:
-        offset_c_int = ctypes.c_int(offset)
-        lib.set_env_collision_tip_offset(self.obj, offset_c_int)
+    def set_collision_end_indices(self, end_indices: List[int]) -> None:
+        end_indices_arr = (ctypes.c_int * len(end_indices))()
+        for i in range(len(end_indices)):
+            end_indices_arr[i] = end_indices[i]
+        lib.set_collision_end_indices(self.obj, end_indices_arr, len(end_indices_arr))
         
     def update_enforce_joint_angles(self, ja: List[float]) -> None:
         ja_arr = (ctypes.c_double * len(ja))()
