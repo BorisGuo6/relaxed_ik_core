@@ -296,10 +296,7 @@ impl ObjectiveTrait for EnvCollision {
             if let Some(handle) = option {
                 let mut sum: f64 = 0.0;
                 let obstacle = v.env_collision.world.objects.get(*handle).unwrap();
-                // let last_elem = frames[self.arm_idx].0.len() - 1;
                 let last_elem = self.collision_end_idx - 1;
-                assert!(self.collision_end_idx == frames[self.arm_idx].0.len());
-
                 for i in self.collision_start_idx..last_elem {
                     let start_pt = Point3::from(frames[self.arm_idx].0[i]);
                     let start_quat = frames[self.arm_idx].1[i];
