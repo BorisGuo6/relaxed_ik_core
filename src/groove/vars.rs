@@ -33,6 +33,7 @@ pub struct VarsConstructorData {
     pub arm_group: Vec<usize>,
     pub num_links_ee_to_tip: i64,
     pub collision_starting_indices: Vec<usize>,
+    pub collision_ending_indices: Vec<usize>,
     ////
 }
 
@@ -54,8 +55,8 @@ pub struct RelaxedIKVars {
     pub is_active_chain: Vec<bool>,
     pub arm_group: Vec<usize>,
     pub collision_starting_indices: Vec<usize>,
-    pub num_links_ee_to_tip: i64,
-    pub env_collision_tip_offset: usize
+    pub collision_ending_indices: Vec<usize>,
+    pub num_links_ee_to_tip: i64
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,6 +161,8 @@ impl RelaxedIKVars {
         let is_active_chain: Vec<bool> = is_active_chain_arr.iter().map(|item| {item.as_bool().unwrap()}).collect();
         let arm_group: Vec<usize> = arm_group_arr.iter().map(|item| {item.as_i64().unwrap() as usize}).collect();
         let enforce_ja: Vec<f64> = enforce_ja_arr.iter().map(|item| {item.as_f64().unwrap()}).collect();
+
+
         // calculate the index of link where collision needs to start of each chain
         let mut collision_starting_indices: Vec<usize> = Vec::new();
         let mut link_considered_in_collision: BTreeSet<i64> = BTreeSet::new();
@@ -178,9 +181,22 @@ impl RelaxedIKVars {
             } 
         }
 
+        if let Some(c_arr) = settings["collision_start_idx"].as_vec() {
+            let c: Vec<usize> = c_arr.iter().map(|item| {item.as_i64().unwrap()} as usize).collect();
+            for i in 0..c.len() {
+                if collision_starting_indices[i] < c[i] {
+                    collision_starting_indices[i] = c[i]
+                }
+            }
+        }
+
+        
+
 
         let urdf = &std::fs::read_to_string(path_to_urdf).unwrap();
         let mut robot = Robot::from_urdf(urdf, &base_links, &ee_links, &chains_def);
+
+        
 
         // enforce joint angles by modifying joint limits
         let eps: f64 = 0.1;
@@ -220,10 +236,29 @@ impl RelaxedIKVars {
         let frames = robot.get_frames_immutable(&starting_config.clone());
         let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
 
+        
+        let mut collision_ending_indices: Vec<usize>= Vec::new();
+        for arm_idx in 0..robot.num_chains {
+            collision_ending_indices.push(frames[arm_idx].0.len());
+        }
+        
+
+
+        if let Some(c_arr) = settings["collision_end_idx"].as_vec() {
+            let c: Vec<usize> = c_arr.iter().map(|item| {item.as_i64().unwrap()} as usize).collect();
+            for i in 0..c.len() {
+                if collision_ending_indices[i] > c[i] {
+                    collision_ending_indices[i] = c[i]
+                }
+            }
+        }
+
+        println!("collision_starting_indices: {:?} \n collision_ending_indices {:?}" ,collision_starting_indices, collision_ending_indices);
+
         RelaxedIKVars{robot, srdf_robot, init_state: starting_config.clone(), xopt: starting_config.clone(),
             prev_state: starting_config.clone(), prev_state2: starting_config.clone(), prev_state3: starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip, env_collision_tip_offset}
+            chains_def, is_active_chain, arm_group, collision_starting_indices, collision_ending_indices, num_links_ee_to_tip}
     }
     
     pub fn update_enforce_ja(&mut self, enforce_joint_angles: &[f64]) {
@@ -275,7 +310,8 @@ impl RelaxedIKVars {
         RelaxedIKVars{robot, srdf_robot, init_state: configs.starting_config.clone(), xopt: configs.starting_config.clone(),
             prev_state: configs.starting_config.clone(), prev_state2: configs.starting_config.clone(), prev_state3: configs.starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(), collision_starting_indices:configs.collision_starting_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone(), env_collision_tip_offset}
+            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(),
+            collision_starting_indices:configs.collision_starting_indices.clone(), collision_ending_indices:configs.collision_ending_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone()}
 
     }
 
@@ -312,7 +348,9 @@ impl RelaxedIKVars {
         // println!("self.init_ee_quats: {:?}",self.init_ee_quats);
     }
 
-
+    pub fn update_collision_end_indices(&mut self, collision_ending_indices: &[usize]) {
+        self.collision_ending_indices = collision_ending_indices.to_vec().clone();
+    }
 
     pub fn update_collision_world(&mut self) -> bool {
         let frames = self.robot.get_frames_immutable(&self.xopt);
@@ -396,7 +434,7 @@ impl RelaxedIKVars {
                 let obstacle = self.env_collision.world.objects.get(*key).unwrap();
                 // println!("Obstacle: {:?}", obstacle.data());
                 let mut sum: f64 = 0.0;
-                let last_elem = frames[arm_idx].0.len() - 1 - self.env_collision_tip_offset;
+                let last_elem = self.collision_ending_indices[arm_idx] - 1;
                 for j in 0..last_elem {
                     let start_pt = Point3::from(frames[arm_idx].0[j]);
                     let end_pt = Point3::from(frames[arm_idx].0[j + 1]);

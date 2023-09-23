@@ -1,6 +1,7 @@
 use std::any::Any;
 use crate::groove::{vars};
 use crate::utils_rust::transformations::{*};
+use crate::utils_rust::math_utils::{*};
 use nalgebra::geometry::{Translation3, UnitQuaternion, Quaternion};
 use std::cmp;
 use std::f64::consts::PI;
@@ -261,12 +262,12 @@ impl ObjectiveTrait for SelfCollision {
 pub struct EnvCollision {
     pub arm_idx: usize,
     pub collision_start_idx: usize,  // index in arm chain where collision will start
-    pub collision_tip_offset: usize
+    pub collision_end_idx: usize
 }
 impl EnvCollision {
-    pub fn new(arm_idx: usize, collision_start_idx: usize) -> Self {Self{arm_idx, collision_start_idx, collision_tip_offset: 0}}
-    pub fn update_tip_offset(&mut self, offset: usize) {
-        self.collision_tip_offset = offset;
+    pub fn new(arm_idx: usize, collision_start_idx: usize, collision_end_idx:usize) -> Self {Self{arm_idx, collision_start_idx, collision_end_idx}}
+    pub fn update_collision_end_idx(&mut self, collision_ending_indices: &[usize]) {
+        self.collision_end_idx = collision_ending_indices[self.arm_idx];
     }
 }
 impl ObjectiveTrait for EnvCollision {
@@ -295,7 +296,10 @@ impl ObjectiveTrait for EnvCollision {
             if let Some(handle) = option {
                 let mut sum: f64 = 0.0;
                 let obstacle = v.env_collision.world.objects.get(*handle).unwrap();
-                let last_elem = frames[self.arm_idx].0.len() - 1 - self.collision_tip_offset;
+                // let last_elem = frames[self.arm_idx].0.len() - 1;
+                let last_elem = self.collision_end_idx - 1;
+                assert!(self.collision_end_idx == frames[self.arm_idx].0.len());
+
                 for i in self.collision_start_idx..last_elem {
                     let start_pt = Point3::from(frames[self.arm_idx].0[i]);
                     let start_quat = frames[self.arm_idx].1[i];
@@ -336,12 +340,12 @@ impl ObjectiveTrait for EnvCollision {
                             query_nc::distance(obstacle.position(), obstacle.shape().deref(), &segment_pos, &segment) - link_radius
                         };
 
-                        if i == last_elem - 1 && self.arm_idx == 0 {
-                            println!("dis_right: {:?}",dis);
-                        }
+                        // if i == last_elem - 1 && self.arm_idx == 0 {
+                        //     println!("dis_right: {:?}",dis);
+                        // }
 
                     // println!("Obstacle: {}, Link: {}, Distance: {:?}", obstacle.data().name, i, dis);
-                    if i == last_elem - 1 {
+                    if i != last_elem - 1 {
                         sum += a / (dis + link_radius).powi(2);
                     }
                     else {
@@ -364,6 +368,83 @@ impl ObjectiveTrait for EnvCollision {
         let x_val = 1.0; // placeholder
         groove_loss(x_val, 0., 2, 2.1, 0.0002, 4)
     }
+}
+
+
+pub struct EnvPcdCollision {
+    pub arm_idx: usize,
+    pub collision_start_idx: usize,  // index in arm chain where collision will start
+    pub collision_end_idx: usize
+}
+impl EnvPcdCollision {
+    pub fn new(arm_idx: usize, collision_start_idx: usize, collision_end_idx:usize) -> Self {Self{arm_idx, collision_start_idx, collision_end_idx}}
+    pub fn update_collision_end_idx(&mut self, collision_ending_indices: &[usize]) {
+        self.collision_end_idx = collision_ending_indices[self.arm_idx];
+    }
+}
+impl ObjectiveTrait for EnvPcdCollision {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+    fn call(&self, x: &[f64], v: &vars::RelaxedIKVars, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) -> f64 {
+        // let start = PreciseTime::now();\
+    
+        for i in 0..x.len() {
+            if x[i].is_nan() {
+                return 10.0
+            }
+        }
+        
+        let mut x_val: f64 = 0.0;
+        let link_radius = v.env_collision.link_radius;
+        let link_radius_finger = v.env_collision.link_radius_finger;
+        let penalty_cutoff: f64 = link_radius * 2.0;
+
+        
+        let a = penalty_cutoff.powi(2);
+        let b = 0.0001;
+        // println!("active obs: {:?}",v.env_collision.active_obstacles);
+        let mut sum: f64 = 0.0;
+        for (pcd_pos, pcd_compound) in &v.env_collision.pcd_compounds {
+            let last_elem = self.collision_end_idx - 1;
+            
+            let num_points = pcd_compound.shapes().len();
+            for i in self.collision_start_idx..last_elem {
+                let start_vec = Vector3::from(frames[self.arm_idx].0[i]);
+                let end_vec = Vector3::from(frames[self.arm_idx].0[i + 1]);
+                
+                for (center_iso, ball) in pcd_compound.shapes() {
+                    let center_translation_local: Vector3<f64> = center_iso.translation.vector;
+                    let center_translation_local_point = Point3::from(center_translation_local);
+                    let center_translation_world_point = pcd_pos * center_translation_local_point;
+
+                    let dis = point_to_segment_distance(&center_translation_world_point.coords, &start_vec, &end_vec);
+                    sum += dis;
+                }
+                
+            }
+            // x_val += sum / num_points as f64;
+            x_val += sum;
+        }
+        
+        if self.arm_idx == 0 { 
+            println!("EnvPcdCollision sum distance: {:?}", x_val);
+        }
+        // let end = PreciseTime::now();
+        // println!("Obstacles calculating takes {}", start.to(end));
+        // groove_loss(x_val, 0., 2, 3.5, 0.00005, 4)
+
+        swamp_loss(x_val, 0.02, 1.5, 60.0, 0.0001, 30)
+
+}
+
+fn call_lite(&self, x: &[f64], v: &vars::RelaxedIKVars, ee_poses: &Vec<(nalgebra::Vector3<f64>, nalgebra::UnitQuaternion<f64>)>) -> f64 {
+    let x_val = 1.0; // placeholder
+    groove_loss(x_val, 0., 2, 2.1, 0.0002, 4)
+}
 }
 
 pub struct MaximizeManipulability;
@@ -526,7 +607,7 @@ impl ObjectiveTrait for MatchEEPosGoals {
         let last_elem = frames[self.arm_idx].0.len() - 1 - self.chain_idx_offset;
         let x_val = ( frames[self.arm_idx].0[last_elem] - v.goal_positions[self.arm_idx] ).norm();
         // println!("{:?},{:?}",frames[self.arm_idx].0[last_elem], v.goal_positions[self.arm_idx]);
-        println!("arm {} dist x: {}", self.arm_idx, x_val);
+        // println!("arm {} dist x: {}", self.arm_idx, x_val);
         groove_loss(x_val, 0., 2, 0.1, 10.0, 2)
     }
 
