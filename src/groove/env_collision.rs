@@ -5,6 +5,10 @@ use ncollide3d::pipeline::{*};
 use ncollide3d::shape::{*};
 use std::collections::BTreeMap;
 
+use kdtree::KdTree;
+use kdtree::distance::squared_euclidean;
+const KDTREE_DIM: usize = 3;
+
 #[derive(Clone, Debug)]
 pub struct LinkData {
     pub is_link: bool,
@@ -43,7 +47,7 @@ pub struct RelaxedIKEnvCollision {
     pub dyn_obstacle_handles: Vec<(CollisionObjectSlabHandle, String)>,
     pub active_pairs: Vec<BTreeMap<CollisionObjectSlabHandle, Vec<CollisionObjectSlabHandle>>>,
     pub active_obstacles: Vec<Vec<(Option<CollisionObjectSlabHandle>, f64)>>,
-    pub pcd_compounds: Vec<(Isometry3<f64>, Compound<f64>)>,
+    pub pcd_compounds: Vec<(Isometry3<f64>, KdTree<f64, usize, [f64; 3]>)>,
 }
 
 impl RelaxedIKEnvCollision {
@@ -75,7 +79,7 @@ impl RelaxedIKEnvCollision {
         let mut link_handles: Vec<Vec<CollisionObjectSlabHandle>> = Vec::new();
         let mut active_pairs: Vec<BTreeMap<CollisionObjectSlabHandle, Vec<CollisionObjectSlabHandle>>> = Vec::new();
         let mut active_obstacles: Vec<Vec<(Option<CollisionObjectSlabHandle>, f64)>> = Vec::new();
-        let mut pcd_compounds: Vec<(Isometry3<f64>, Compound<f64>)> = Vec::new();
+        let mut pcd_compounds: Vec<(Isometry3<f64>, KdTree<f64, usize, [f64; 3]>)> = Vec::new();
 
         for arm_idx in 0..frames.len() {
             let mut handles: Vec<CollisionObjectSlabHandle> = Vec::new();
@@ -144,25 +148,38 @@ impl RelaxedIKEnvCollision {
                 points.push(Point3::new(sphere_obs.tx, sphere_obs.ty, sphere_obs.tz));
             }
             // let pcd = ShapeHandle::new(Compound::new(shapes));
-            let pcd = ShapeHandle::new(ConvexHull::try_from_points(&points).unwrap());
+            // let pcd = ShapeHandle::new(ConvexHull::try_from_points(&points).unwrap());
             let pcd_ts = Translation3::new(pcd_obs.tx, pcd_obs.ty, pcd_obs.tz);
             let pcd_rot = UnitQuaternion::from_euler_angles(pcd_obs.rx, pcd_obs.ry, pcd_obs.rz);
             let pcd_pos = Isometry3::from_parts(pcd_ts, pcd_rot);
-            let pcd_data = CollisionObjectData::new(pcd_obs.name.clone(), LinkData::new(false, -1));
-            let pcd_handle = world.add(pcd_pos, pcd, others_groups, proximity_query, pcd_data);
-            if pcd_obs.is_dynamic {
-                dyn_obstacle_handles.push((pcd_handle.0, pcd_handle.1.data().name.clone()));
-            }
+            // let pcd_data = CollisionObjectData::new(pcd_obs.name.clone(), LinkData::new(false, -1));
+            // let pcd_handle = world.add(pcd_pos, pcd, others_groups, proximity_query, pcd_data);
+            // if pcd_obs.is_dynamic {
+            //     dyn_obstacle_handles.push((pcd_handle.0, pcd_handle.1.data().name.clone()));
+            // }
 
             // Add Compound of spheres to represent point cloud in a new way
-            let mut parts: Vec<(Isometry3<f64>, ShapeHandle<f64>)> = Vec::new();
-            for sphere_obs in &pcd_obs.points {
+            // let mut parts: Vec<(Isometry3<f64>, ShapeHandle<f64>)> = Vec::new();
+
+            let mut pcd_kdtree = KdTree::new(KDTREE_DIM);
+
+            for (i, sphere_obs) in pcd_obs.points.iter().enumerate() {
                 let center_iso = Isometry3::new(Vector3::new(sphere_obs.tx, sphere_obs.ty, sphere_obs.tz), nalgebra::zero());
-                let ball_handle = ShapeHandle::new(Ball::new(pcd_ball_radius));
-                parts.push((center_iso, ball_handle));
+                // let ball_handle = ShapeHandle::new(Ball::new(pcd_ball_radius));
+                // parts.push((center_iso, ball_handle));
+                let center_translation_local: Vector3<f64> = center_iso.translation.vector;
+                let center_translation_local_point = Point3::from(center_translation_local);
+                let center_translation_world_point = pcd_pos * center_translation_local_point;
+                let world_point = center_translation_world_point.coords;
+
+
+                let _res = pcd_kdtree.add([world_point[0], world_point[1], world_point[2]], i);
+
             }
-            let pcd_compound = Compound::new(parts);
-            pcd_compounds.push((pcd_pos.clone(), pcd_compound));
+            // let pcd_compound = Compound::new(parts);
+            
+            pcd_compounds.push((pcd_pos.clone(), pcd_kdtree));
+
         }
 
 

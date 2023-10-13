@@ -2,7 +2,7 @@ use crate::groove::gradient::{ForwardFiniteDiff, CentralFiniteDiff, GradientFind
 use crate::groove::vars::{RelaxedIKVars};
 use optimization_engine::{constraints::*, panoc::*, *};
 use crate::groove::objective_master::ObjectiveMaster;
-
+use std::time::{Instant, Duration};
 pub struct OptimizationEngineOpen {
     dim: usize,
     cache: PANOCCache
@@ -36,9 +36,12 @@ impl OptimizationEngineOpen {
         // let mut panoc = PANOCOptimizer::new(problem, &mut self.cache);
 
         // Invoke the solver
+        let start = Instant::now();   
         let status = panoc.solve(x);
+        let duration = start.elapsed(); 
+        println!("Panoc status: {:#?}", status);
+        println!("Panoc solution: {:#?}", x);
+        println!("Duration: {:?} ms", duration.as_millis());
 
-        // println!("Panoc status: {:#?}", status);
-        // println!("Panoc solution: {:#?}", x);
     }
 }

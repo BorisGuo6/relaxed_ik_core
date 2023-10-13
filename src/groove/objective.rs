@@ -2,6 +2,7 @@ use std::any::Any;
 use crate::groove::{vars};
 use crate::utils_rust::transformations::{*};
 use crate::utils_rust::math_utils::{*};
+use k::link;
 use nalgebra::geometry::{Translation3, UnitQuaternion, Quaternion};
 use std::cmp;
 use std::f64::consts::PI;
@@ -11,6 +12,7 @@ use std::ops::Deref;
 use time::PreciseTime;
 use parry3d_f64::{shape, query};
 use ncollide3d::{shape as shape_nc, query as query_nc};
+use kdtree::distance::squared_euclidean;
 
 pub fn groove_loss(x_val: f64, t: f64, d: i32, c: f64, f: f64, g: i32) -> f64 {
     -( (-(x_val - t).powi(d)) / (2.0 * c.powi(2) ) ).exp() + f * (x_val - t).powi(g)
@@ -44,6 +46,11 @@ pub fn swamp_groove_loss_derivative(x_val: f64, g:f64, l_bound: f64, u_bound: f6
     - f1 * ( (-x_val.powi(2)) / (2.0 * c.powi(2) ) ).exp() *  ((-2.0 * x_val) /  (2.0 * c.powi(2))) 
     + 2.0 * f2 * x_val 
     + f3 / (2.0 * x_val - l_bound - u_bound) * ( 2.0 * (x/b).powi(p1) * p1 as f64 * (- (x/b).powi(p1)).exp()) 
+}
+
+fn linspace(start: f64, end: f64, num: usize) -> Vec<f64> {
+    let step = (end - start) / (num as f64 - 1.0);
+    (0..num).map(|i| start + step * (i as f64)).collect()
 }
 
 pub trait ObjectiveTrait: Any + Send {
@@ -387,7 +394,7 @@ impl ObjectiveTrait for EnvPcdCollision {
         self
     }
     fn call(&self, x: &[f64], v: &vars::RelaxedIKVars, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) -> f64 {
-        // let start = PreciseTime::now();\
+        let start: PreciseTime = PreciseTime::now();
     
         for i in 0..x.len() {
             if x[i].is_nan() {
@@ -395,6 +402,8 @@ impl ObjectiveTrait for EnvPcdCollision {
             }
         }
         
+        let link_segment_num: usize = 5;
+        let kdtree_qnum: usize = 10;
         let mut x_val: f64 = 0.0;
         let link_radius = v.env_collision.link_radius;
         let link_radius_finger = v.env_collision.link_radius_finger;
@@ -404,37 +413,62 @@ impl ObjectiveTrait for EnvPcdCollision {
         let a = penalty_cutoff.powi(2);
         let b = 0.0001;
         // println!("active obs: {:?}",v.env_collision.active_obstacles);
-        let mut sum: f64 = 0.0;
+        // let mut sum: f64 = 0.0;
+
+        let mut num_dis_call: usize = 0;
+
         for (pcd_pos, pcd_compound) in &v.env_collision.pcd_compounds {
             let last_elem = self.collision_end_idx - 1;
-            
-            let num_points = pcd_compound.shapes().len();
+            let mut sum = 0.0;
+            let num_points = pcd_compound.size();
             for i in self.collision_start_idx..last_elem {
                 let start_vec = Vector3::from(frames[self.arm_idx].0[i]);
                 let end_vec = Vector3::from(frames[self.arm_idx].0[i + 1]);
                 
-                for (center_iso, ball) in pcd_compound.shapes() {
-                    let center_translation_local: Vector3<f64> = center_iso.translation.vector;
-                    let center_translation_local_point = Point3::from(center_translation_local);
-                    let center_translation_world_point = pcd_pos * center_translation_local_point;
+                // for (center_iso, ball) in pcd_compound.shapes() {
+                //     let center_translation_local: Vector3<f64> = center_iso.translation.vector;
+                //     let center_translation_local_point = Point3::from(center_translation_local);
+                //     let center_translation_world_point = pcd_pos * center_translation_local_point;
 
-                    let dis = point_to_segment_distance(&center_translation_world_point.coords, &start_vec, &end_vec);
-                    sum += dis;
+                    // let dis = point_to_segment_distance(&center_translation_world_point.coords, &start_vec, &end_vec);
+                //     num_dis_call += 1;
+                //     sum += if dis > link_radius {1.0 / (dis*dis)} else {1.0 / (link_radius*link_radius)};
+                // }
+                
+                let mut mean_dis: f64 = 0.0;
+                let mut link_min_dis = 10.0;
+                for a in linspace(0.0, 1.0, link_segment_num) {
+                    let v: Vector3<f64> = start_vec * (1.0 - a) + end_vec * a; 
+                    let point = [v[0], v[1], v[2]];
+                    let nearest_iter = pcd_compound.iter_nearest(&point, &squared_euclidean).unwrap();
+
+                    
+                    for (dis, _point) in nearest_iter.take(kdtree_qnum) {
+                        if dis < link_min_dis {
+                            link_min_dis = dis;
+                        }
+                    }
+                    
+                    
                 }
                 
+                sum += a / (link_min_dis + link_radius).powi(2);
+                
             }
-            // x_val += sum / num_points as f64;
-            x_val += sum;
+            x_val += sum as f64;
+            // x_val += sum;
         }
         
         if self.arm_idx == 0 { 
-            println!("EnvPcdCollision sum distance: {:?}", x_val);
+            // println!("EnvPcdCollision sum loss: {:?}", x_val);
         }
-        // let end = PreciseTime::now();
+        let end = PreciseTime::now();
+        // println!("arm {} calls: {} time: {}",self.arm_idx, num_dis_call,start.to(end));
+        
         // println!("Obstacles calculating takes {}", start.to(end));
-        // groove_loss(x_val, 0., 2, 3.5, 0.00005, 4)
+        groove_loss(x_val, 0., 2, 3.5, 0.00005, 4)
 
-        swamp_loss(x_val, 0.02, 1.5, 60.0, 0.0001, 30)
+        // swamp_loss(x_val, 0.01, 1.5, 60.0, 0.0001, 30)
 
 }
 

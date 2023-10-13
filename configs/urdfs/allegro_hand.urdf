@@ -5,12 +5,64 @@
 <!-- =================================================================================== -->
 <robot name="allegro_hand_right">
   <link name="world"/>
-  <joint name="arm_to_world_floating" type="fixed">
-  <!-- <joint name="arm_to_world_fixed" type="fixed"> -->
+  <!-- Prismatic joints for translation in X, Y, and Z -->
+  <joint name="trans_x" type="prismatic">
     <parent link="world"/>
-    <child link="palm_link"/>
-    <origin xyz="0 0 0.5" rpy="0 0 0" />
+    <child link="intermediate_link_x"/>
+    <axis xyz="1 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="2"/>
   </joint>
+
+  <joint name="trans_y" type="prismatic">
+    <parent link="intermediate_link_x"/>
+    <child link="intermediate_link_y"/>
+    <axis xyz="0 1 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="2"/>
+  </joint>
+
+  <joint name="trans_z" type="prismatic">
+    <parent link="intermediate_link_y"/>
+    <child link="intermediate_link_z"/>
+    <axis xyz="0 0 1"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="2"/>
+  </joint>
+
+  <!-- Revolute joints for rotation about X, Y, and Z axes -->
+  <joint name="rot_x" type="revolute">
+    <parent link="intermediate_link_z"/>
+    <child link="intermediate_link_rot_x"/>
+    <axis xyz="1 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="1"/>
+  </joint>
+
+  <joint name="rot_y" type="revolute">
+    <parent link="intermediate_link_rot_x"/>
+    <child link="intermediate_link_rot_y"/>
+    <axis xyz="0 1 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="1"/>
+  </joint>
+
+  <joint name="rot_z" type="revolute">
+    <parent link="intermediate_link_rot_y"/>
+    <child link="palm_link"/>
+    <axis xyz="0 0 1"/>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <limit lower="-1000000" upper="1000000" effort="1000" velocity="1"/>
+  </joint>
+
+  <!-- Add the intermediate link definitions -->
+  <link name="intermediate_link_x"/>
+  <link name="intermediate_link_y"/>
+  <link name="intermediate_link_z"/>
+  <link name="intermediate_link_rot_x"/>
+  <link name="intermediate_link_rot_y"/>
+  
+  <!-- ... remaining robot definition -->
   <!-- ======================== BASE PARAMS ========================= -->
   <!-- ======================== FINGER PARAMS ======================== -->
   <!-- full height from joint to tip. when used,
@@ -161,6 +213,7 @@
   <!-- [FINGER TIP] -->
   <link name="link_3.0_tip">
     <visual>
+      <origin rpy="0 0 0" xyz="0 0 -0.014"/>
       <geometry>
         <mesh filename="meshes/link_3.0_tip.STL"/>
       </geometry>
@@ -190,7 +243,8 @@
   <joint name="joint_3.0_tip" type="fixed">
     <parent link="link_3.0"/>
     <child link="link_3.0_tip"/>
-    <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+    <!-- <origin rpy="0 0 0" xyz="0 0 0.0267"/> -->
+    <origin rpy="0 0 0" xyz="0 0 0.0407"/>
   </joint>
   <!-- [LINK 0, 4, 8] -->
   <link name="link_4.0">
@@ -307,6 +361,7 @@
   <!-- [FINGER TIP] -->
   <link name="link_7.0_tip">
     <visual>
+    <origin rpy="0 0 0" xyz="0 0 -0.014"/>
       <geometry>
         <mesh filename="meshes/link_3.0_tip.STL"/>
       </geometry>
@@ -336,7 +391,8 @@
   <joint name="joint_7.0_tip" type="fixed">
     <parent link="link_7.0"/>
     <child link="link_7.0_tip"/>
-    <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+    <!-- <origin rpy="0 0 0" xyz="0 0 0.0267"/> -->
+    <origin rpy="0 0 0" xyz="0 0 0.0407"/>
   </joint>
   <!-- [LINK 0, 4, 8] -->
   <link name="link_8.0">
@@ -453,6 +509,7 @@
   <!-- [FINGER TIP] -->
   <link name="link_11.0_tip">
     <visual>
+    <origin rpy="0 0 0" xyz="0 0 -0.014"/>
       <geometry>
         <mesh filename="meshes/link_3.0_tip.STL"/>
       </geometry>
@@ -482,7 +539,8 @@
   <joint name="joint_11.0_tip" type="fixed">
     <parent link="link_11.0"/>
     <child link="link_11.0_tip"/>
-    <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+    <!-- <origin rpy="0 0 0" xyz="0 0 0.0267"/> -->
+    <origin rpy="0 0 0" xyz="0 0 0.0407"/>
   </joint>
   <!-- THUMB -->
   <!-- [LINK 12] -->
@@ -608,6 +666,7 @@
   <!-- [FINGER TIP] -->
   <link name="link_15.0_tip">
     <visual>
+    <origin rpy="0 0 0" xyz="0 0 -0.014"/>
       <geometry>
         <mesh filename="meshes/link_15.0_tip.STL"/>
       </geometry>
@@ -637,7 +696,8 @@
   <joint name="joint_15.0_tip" type="fixed">
     <parent link="link_15.0"/>
     <child link="link_15.0_tip"/>
-    <origin rpy="0 0 0" xyz="0 0 0.0423"/>
+    <!-- <origin rpy="0 0 0" xyz="0 0 0.0423"/> -->
+    <origin rpy="0 0 0" xyz="0 0 0.0563"/>
   </joint>
   <!-- ============================================================================= -->
   <!-- THUMB MACRO -->

@@ -1,0 +1,45 @@
+urdf: allegro_hand.urdf
+link_radius: 0.05 
+link_radius_finger: 0.01
+base_links:
+  - world
+  - world
+  - world
+  - world
+
+ee_links:
+  - link_3.0_tip
+  - link_15.0_tip
+  - link_7.0_tip
+  - link_11.0_tip
+  
+
+
+# starting_config:   [0.35, -1.5, -0.2, -0.0, -2.0, 2.0, -1.2354, -1.1, 1.5, 0.2, 0.0, 2.0, -2.0, 1.2354, 1.1]
+starting_config:      [0.0,0.0,0.0,0.0,0.0,0.0,0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+enforce_joint_angles: [-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0,-10.0]
+# starting_config:   [0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+chains_def: [[0,1,2,3,4,5,6,7,8,9],[0,1,2,3,4,5,10,11,12,13],[0,1,2,3,4,5,14,15,16,17],[0,1,2,3,4,5,18,19,20,21]]
+is_active_chain: [true, true, false, false]
+collision_start_idx: [6, 6, 6, 6]
+arm_group:       [1,2,3,4]
+num_links_ee_to_tip: 0
+# For trajectory tracing
+# traj_files: [traject_6d_5_right.npy, traject_6d_5_left.npy]
+
+# traj_files: [traject_6d_1.npy]
+obstacles:
+  cuboids:
+    # - name: table
+    #   scale: [0.275,0.6,0.24]
+    #   translation: [0.8,0.0,0.24]
+    #   rotation: [0.0,0.0,0.0]
+    #   animation: static
+  point_cloud:
+    - name: cup
+      scale: [0.07, 0.07, 0.07]
+      translation: [0.0, 0.0, 0.0]
+      rotation: [0.0, 0.0, 0.0]
+      animation: static
+      file: cup

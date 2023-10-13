@@ -2,6 +2,7 @@ use std::any::Any;
 use crate::groove::objective::*;
 use crate::groove::vars::RelaxedIKVars;
 use std::collections::BTreeSet;
+use std::time::{Instant, Duration};
 pub struct ObjectiveMaster {
     pub objectives: Vec<Box<dyn ObjectiveTrait + Send>>,
     pub num_chains: usize,
@@ -63,15 +64,15 @@ impl ObjectiveMaster {
                 weight_priors.push(50.0);
                 weight_names.push(format!("eepos_{}",i));
                 objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
-                weight_priors.push(30.0);
+                weight_priors.push(0.0);
                 weight_names.push(format!("eequat_{}",i));
             }
-            objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i], collision_ending_indices[i])));
-            weight_priors.push(20.0);
-            weight_names.push(format!("envcollision_{}",i));
+            // objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i], collision_ending_indices[i])));
+            // weight_priors.push(0.0);
+            // weight_names.push(format!("envcollision_{}",i));
 
             objectives.push(Box::new(EnvPcdCollision::new(i, collision_starting_indices[i], collision_ending_indices[i])));
-            weight_priors.push(0.0);
+            weight_priors.push(1.0);
             weight_names.push(format!("envcollision_pcd_{}",i));
             // num_dofs += chain_lengths[i];
         }
@@ -103,7 +104,7 @@ impl ObjectiveMaster {
                     
                     collisions.insert(link_pair);
                     objectives.push(Box::new(SelfCollision::new(i, i,  j, k, false, false))); 
-                    weight_priors.push(0.5);
+                    weight_priors.push(0.1);
                     weight_names.push(String::from("selfcollision"));
                 }
             }
@@ -129,10 +130,10 @@ impl ObjectiveMaster {
                         collisions.insert(link_pair);
                         objectives.push(Box::new(SelfCollision::new(a1, a2,  i, j, is_ee_link_0, is_ee_link_1))); 
                         if is_ee_link_0 && is_ee_link_1 {
-                            weight_priors.push(0.5);
+                            weight_priors.push(0.1);
                             weight_names.push(String::from("selfcollision_ee"));
                         } else {
-                            weight_priors.push(0.5);
+                            weight_priors.push(0.1);
                             weight_names.push(String::from("selfcollision"));
                         }
                         
@@ -192,10 +193,21 @@ impl ObjectiveMaster {
         let mut out = 0.0;
         let frames = vars.robot.get_frames_immutable(x);
         let mut temp: Vec<f64> = Vec::new();
+        let mut time_costs: Vec<usize> = Vec::new();
         for i in 0..self.objectives.len() {
+            let start = Instant::now(); 
             let l = self.weight_priors[i] * self.objectives[i].call(x, vars, &frames);
+            let duration = start.elapsed(); 
+            let t = duration.as_micros() as usize;
+            time_costs.push(t);
+            if t > 10 {
+                // println!("slow {:?}: {:?}", i, t);
+            }
+            
             out += l;
         }
+        let tot_time: usize = time_costs.iter().sum();
+        // println!("call time: {:?}",tot_time);
         // println!("temp: {:?}", temp);
         out
     }
@@ -215,7 +227,7 @@ impl ObjectiveMaster {
         let mut losses: Vec<f64> = Vec::new();
         for i in 0..self.objectives.len() {
             let l = self.weight_priors[i] * self.objectives[i].call(x, vars, &frames);
-            losses.push(l);
+            losses.push(l); 
         }
         losses
     }
