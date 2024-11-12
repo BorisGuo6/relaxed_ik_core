@@ -46,6 +46,7 @@ impl Robot {
             let mut rot_offsets = Vec::new();
             let mut num_links_inbetween: usize = 0;
             let mut link_names: Vec<String> = Vec::new();
+            let mut joint_names: Vec<String> = Vec::new();
             serial_chain.iter().for_each(|node| {
                 let link = node.link();
                 let link_name = link.as_ref().unwrap().clone().name;
@@ -60,7 +61,7 @@ impl Robot {
 
             serial_chain.iter().for_each(|node| {
                 let joint = node.joint();
-                
+                joint_names.push(joint.name.clone());
                 match joint.joint_type {
                     k::JointType::Fixed => {
                         joint_types.push("fixed".to_string());
@@ -107,23 +108,32 @@ impl Robot {
 
                 displacements.push(joint.origin().translation.vector);
                 rot_offsets.push(joint.origin().rotation);
-            });
+            }); 
+
+            println!("----------------------------------");
+            println!("Link names of arm {}: {:?}", i, link_names);
+            println!("ALL joint names of arm {}: {:?}",i, joint_names);
+
             let arm: arm::Arm = arm::Arm::init(axis_types.clone(), displacements.clone(),
             rot_offsets.clone(), joint_types.clone());
             arms.push(arm);
             // chain_lengths.push(axis_types.len() as usize);
             chain_lengths.push(num_links_inbetween);
             // num_dofs += axis_types.len();
-            println!("Link names of arm {}: {:?}", i, link_names);
             arm_link_names.push(link_names);            
         }
         num_dofs = articulated_joint_names.len();
-        println!("axis types: {:?}", arms[0].axis_types);
-        println!("num_dofs: {:?}",num_dofs);
-        println!("articulated_joint_names: {:?}",articulated_joint_names);
-        println!("lower_joint_limits: {:?}",lower_joint_limits);
-        println!("upper_joint_limits: {:?}",upper_joint_limits);
+
+        println!("----------------------------------");
+        // println!("axis types: {:?}", arms[0].axis_types);
+        // println!("num_dofs: {:?}",num_dofs);
+        // println!("articulated_joint_names: {:?}",articulated_joint_names);
+        // println!("lower_joint_limits: {:?}",lower_joint_limits);
+        // println!("upper_joint_limits: {:?}",upper_joint_limits);
+        
         println!("chain_lengths: {:?}", chain_lengths);
+        println!("----------------------------------");
+        
         Robot{arms, arm_link_names, num_chains, num_dofs, chain_lengths, chains_def: chains_def.clone(), lower_joint_limits, upper_joint_limits}
 
     }

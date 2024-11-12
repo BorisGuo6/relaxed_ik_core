@@ -304,6 +304,35 @@ pub unsafe extern "C" fn set_objective_weight_priors(ptr: *mut RelaxedIK, weight
     }
 }
 
+#[no_mangle]    
+pub unsafe extern "C" fn set_collision_end_indices(ptr: *mut RelaxedIK, end_indices: *const c_int, len: c_int) {
+    let relaxed_ik = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+    let indices_slice= std::slice::from_raw_parts(end_indices, len as usize);
+    let indices_vec: Vec<usize> = indices_slice.iter().map(|item| {*item as usize}).collect();
+    relaxed_ik.vars.update_collision_end_indices(&indices_vec);
+    relaxed_ik.om.update_collision_end_indices(&indices_vec);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn update_enforce_joint_angles(ptr: *mut RelaxedIK, ja: *const c_double, ja_len: c_int) {
+    let relaxed_ik = unsafe {
+        assert!(!ptr.is_null());
+        &mut *ptr
+    };
+    assert!(!ja.is_null(), "Null pointer for ja!");
+
+    assert!(ja_len as usize == relaxed_ik.vars.xopt.len());
+    let ja_slice: &[c_double] = std::slice::from_raw_parts(ja, ja_len as usize);
+    
+
+    let ja_vec = ja_slice.to_vec();
+
+    relaxed_ik.vars.update_enforce_ja(&ja_vec);
+    
+}
 
 
 #[repr(C)]

@@ -1,6 +1,7 @@
 use nalgebra::{UnitQuaternion, Vector3, Vector6, Quaternion, Point3};
 use std::f64::consts::PI;
 use std::collections::{BTreeSet, HashSet};
+use crate::relaxed_ik::Opt;
 use crate::spacetime::robot::Robot;
 use crate::utils_rust::file_utils::{*};
 use crate::utils_rust::yaml_utils::{*};
@@ -32,12 +33,13 @@ pub struct VarsConstructorData {
     pub arm_group: Vec<usize>,
     pub num_links_ee_to_tip: i64,
     pub collision_starting_indices: Vec<usize>,
+    pub collision_ending_indices: Vec<usize>,
     ////
 }
 
 pub struct RelaxedIKVars {
     pub robot: Robot,
-    pub srdf_robot: SRDFRobot,
+    pub srdf_robot: Option<SRDFRobot>,
     pub init_state: Vec<f64>,
     pub xopt: Vec<f64>,
     pub prev_state: Vec<f64>,
@@ -53,7 +55,8 @@ pub struct RelaxedIKVars {
     pub is_active_chain: Vec<bool>,
     pub arm_group: Vec<usize>,
     pub collision_starting_indices: Vec<usize>,
-    pub num_links_ee_to_tip: i64,
+    pub collision_ending_indices: Vec<usize>,
+    pub num_links_ee_to_tip: i64
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,15 +82,49 @@ impl RelaxedIKVars {
         let res = file.read_to_string(&mut contents).unwrap();
         let docs = YamlLoader::load_from_str(contents.as_str()).unwrap();
         let settings = &docs[0];
+        
+        let urdf_path = settings["urdf"].as_str().unwrap();
+        let path_to_urdf =  
+            if urdf_path.chars().nth(0).unwrap() == '/' { // is absolute path
+                urdf_path.to_string()
+            } else {
+                path_to_src.clone() + "configs/urdfs/" + urdf_path
+            };
+        
 
-        let path_to_urdf = path_to_src.clone() + "configs/urdfs/" + settings["urdf"].as_str().unwrap();
-        let path_to_srdf = path_to_src.clone() + "configs/urdfs/" + settings["srdf"].as_str().unwrap();
+        let srdf_path = settings["srdf"].as_str();
+        let path_to_srdf =  
+        match srdf_path {
+            Some(path) => {
+                if path.chars().nth(0).unwrap() == '/' { // is absolute path
+                    Some(path.to_string())
+                } else {
+                    Some(path_to_src.clone() + "configs/urdfs/" + path)
+                }
+            }
+            None => {
+                None
+            }
+        };
+
+        
 
         println!("RelaxedIK is using below URDF file: {}", path_to_urdf);
-        println!("RelaxedIK is using below SRDF file: {}", path_to_srdf);
-
-        let srdf_file =  fs::read_to_string(path_to_srdf).unwrap();
-        let srdf_robot: SRDFRobot = serde_xml_rs::from_str(&srdf_file).unwrap();    
+        if let Some(p) = &path_to_srdf {
+            println!("RelaxedIK is using below SRDF file: {}", p);
+        }
+        
+        let srdf_robot: Option<SRDFRobot> = 
+        match path_to_srdf {
+            Some(path) => {
+                let srdf_file =  fs::read_to_string(path).unwrap();
+                Some(serde_xml_rs::from_str(&srdf_file).unwrap())
+            }
+            None => {
+                None
+            }
+        };
+          
 
         let chain = k::Chain::<f64>::from_urdf_file(path_to_urdf.clone()).unwrap();
 
@@ -95,9 +132,13 @@ impl RelaxedIKVars {
         let ee_links_arr = settings["ee_links"].as_vec().unwrap();
         let chains_def_arr = settings["chains_def"].as_vec().unwrap();
         let is_active_chain_arr = settings["is_active_chain"].as_vec().unwrap();
-        let num_links_ee_to_tip = settings["num_links_ee_to_tip"].as_i64().unwrap();
+        // let num_links_ee_to_tip = settings["num_links_ee_to_tip"].as_i64().unwrap();
+        let num_links_ee_to_tip = 0; // unused. will probably remove in the future.
+        
+        let env_collision_tip_offset: usize = 0;
         let enforce_ja_arr = settings["enforce_joint_angles"].as_vec().unwrap();
         let arm_group_arr = settings["arm_group"].as_vec().unwrap();
+         
 
         let num_chains = base_links_arr.len();
         
@@ -120,6 +161,8 @@ impl RelaxedIKVars {
         let is_active_chain: Vec<bool> = is_active_chain_arr.iter().map(|item| {item.as_bool().unwrap()}).collect();
         let arm_group: Vec<usize> = arm_group_arr.iter().map(|item| {item.as_i64().unwrap() as usize}).collect();
         let enforce_ja: Vec<f64> = enforce_ja_arr.iter().map(|item| {item.as_f64().unwrap()}).collect();
+
+
         // calculate the index of link where collision needs to start of each chain
         let mut collision_starting_indices: Vec<usize> = Vec::new();
         let mut link_considered_in_collision: BTreeSet<i64> = BTreeSet::new();
@@ -138,9 +181,22 @@ impl RelaxedIKVars {
             } 
         }
 
+        if let Some(c_arr) = settings["collision_start_idx"].as_vec() {
+            let c: Vec<usize> = c_arr.iter().map(|item| {item.as_i64().unwrap()} as usize).collect();
+            for i in 0..c.len() {
+                if collision_starting_indices[i] < c[i] {
+                    collision_starting_indices[i] = c[i]
+                }
+            }
+        }
+
+        
+
 
         let urdf = &std::fs::read_to_string(path_to_urdf).unwrap();
         let mut robot = Robot::from_urdf(urdf, &base_links, &ee_links, &chains_def);
+
+        
 
         // enforce joint angles by modifying joint limits
         let eps: f64 = 0.1;
@@ -180,12 +236,48 @@ impl RelaxedIKVars {
         let frames = robot.get_frames_immutable(&starting_config.clone());
         let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
 
+        
+        let mut collision_ending_indices: Vec<usize>= Vec::new();
+        for arm_idx in 0..robot.num_chains {
+            collision_ending_indices.push(frames[arm_idx].0.len());
+        }
+        
+
+
+        if let Some(c_arr) = settings["collision_end_idx"].as_vec() {
+            let c: Vec<usize> = c_arr.iter().map(|item| {item.as_i64().unwrap()} as usize).collect();
+            for i in 0..c.len() {
+                if collision_ending_indices[i] > c[i] {
+                    collision_ending_indices[i] = c[i]
+                }
+            }
+        }
+
+        println!("collision_starting_indices: {:?} \n collision_ending_indices {:?}" ,collision_starting_indices, collision_ending_indices);
+
         RelaxedIKVars{robot, srdf_robot, init_state: starting_config.clone(), xopt: starting_config.clone(),
             prev_state: starting_config.clone(), prev_state2: starting_config.clone(), prev_state3: starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def, is_active_chain, arm_group, collision_starting_indices, num_links_ee_to_tip}
+            chains_def, is_active_chain, arm_group, collision_starting_indices, collision_ending_indices, num_links_ee_to_tip}
     }
     
+    pub fn update_enforce_ja(&mut self, enforce_joint_angles: &[f64]) {
+        // enforce joint angles by modifying joint limits
+        let eps: f64 = 0.1;
+        for i in 0..self.robot.num_dofs {
+            if enforce_joint_angles[i] > -PI && enforce_joint_angles[i] < PI {
+                self.robot.lower_joint_limits[i] = enforce_joint_angles[i] - eps;
+                self.robot.upper_joint_limits[i] = enforce_joint_angles[i] + eps;
+            } 
+        }
+        println!("new ja limits:\n{:?}\n{:?}", self.robot.lower_joint_limits, self.robot.upper_joint_limits);
+    }
+
+    pub fn reset_env_collision(&mut self, path_to_setting: &str, frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>) {
+        let env_collision_file = EnvCollisionFileParser::from_yaml_path(path_to_setting.to_string());
+        let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
+        self.env_collision = env_collision;
+    }
     // for webassembly
     pub fn from_jsvalue( configs: VarsConstructorData, urdf: &str, srdf: &str) -> Self  {
 
@@ -197,7 +289,7 @@ impl RelaxedIKVars {
         }
 
         let robot = Robot::from_urdf(urdf, &configs.base_links, &configs.ee_links, &configs.chains_def);
-        let srdf_robot: SRDFRobot = serde_xml_rs::from_str(srdf).unwrap();    
+        let srdf_robot: Option<SRDFRobot> = Some(serde_xml_rs::from_str(srdf).unwrap());    
 
         let mut init_ee_positions: Vec<Vector3<f64>> = Vec::new();
         let mut init_ee_quats: Vec<UnitQuaternion<f64>> = Vec::new();
@@ -213,12 +305,13 @@ impl RelaxedIKVars {
         let frames = robot.get_frames_immutable(&configs.starting_config.clone());
         let env_collision = RelaxedIKEnvCollision::init_collision_world(env_collision_file, &frames);
 
-
+        let env_collision_tip_offset: usize = 0;
 
         RelaxedIKVars{robot, srdf_robot, init_state: configs.starting_config.clone(), xopt: configs.starting_config.clone(),
             prev_state: configs.starting_config.clone(), prev_state2: configs.starting_config.clone(), prev_state3: configs.starting_config.clone(),
             goal_positions: init_ee_positions.clone(), goal_quats: init_ee_quats.clone(), tolerances, init_ee_positions, init_ee_quats, env_collision:env_collision,
-            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(), collision_starting_indices:configs.collision_starting_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone()}
+            chains_def:configs.chains_def.clone(), is_active_chain:configs.is_active_chain.clone(), arm_group: configs.arm_group.clone(),
+            collision_starting_indices:configs.collision_starting_indices.clone(), collision_ending_indices:configs.collision_ending_indices.clone(), num_links_ee_to_tip: configs.num_links_ee_to_tip.clone()}
 
     }
 
@@ -247,18 +340,25 @@ impl RelaxedIKVars {
 
         self.init_ee_positions = init_ee_positions.clone();
         self.init_ee_quats = init_ee_quats.clone();
+        self.goal_positions = init_ee_positions.clone();
+        self.goal_quats = init_ee_quats.clone();
         // self.update_collision_world();
         println!("core: reset -> {:?}", init_state);
         // println!("self.init_ee_positions: {:?}",self.init_ee_positions);
         // println!("self.init_ee_quats: {:?}",self.init_ee_quats);
     }
 
-
+    pub fn update_collision_end_indices(&mut self, collision_ending_indices: &[usize]) {
+        self.collision_ending_indices = collision_ending_indices.to_vec().clone();
+    }
 
     pub fn update_collision_world(&mut self) -> bool {
         let frames = self.robot.get_frames_immutable(&self.xopt);
+        // println!("&self.xopt: {:?}", &self.xopt);
         self.env_collision.update_links(&frames);
+        self.env_collision.world.update();
         for event in self.env_collision.world.proximity_events() {
+            // panic!("test");
             let c1 = self.env_collision.world.objects.get(event.collider1).unwrap();
             let c2 = self.env_collision.world.objects.get(event.collider2).unwrap();
             if event.new_status == ncollide3d::query::Proximity::Intersecting {
@@ -316,13 +416,14 @@ impl RelaxedIKVars {
                     }
                 } 
             }
+            // println!("active pairs:");
             // self.print_active_pairs();
         }
-
-        self.env_collision.world.update();
+        // moved update before the loop for now, see if everything still works.
+        // self.env_collision.world.upda te();
 
         let link_radius = self.env_collision.link_radius;
-        let link_radius_finger = 0.01;
+        let link_radius_finger = self.env_collision.link_radius_finger;
         let penalty_cutoff: f64 = link_radius * 2.0;
         let a = penalty_cutoff.powi(2);
         let filter_cutoff = 3;
@@ -333,7 +434,7 @@ impl RelaxedIKVars {
                 let obstacle = self.env_collision.world.objects.get(*key).unwrap();
                 // println!("Obstacle: {:?}", obstacle.data());
                 let mut sum: f64 = 0.0;
-                let last_elem = frames[arm_idx].0.len() - 1;
+                let last_elem = self.collision_ending_indices[arm_idx] - 1;
                 for j in 0..last_elem {
                     let start_pt = Point3::from(frames[arm_idx].0[j]);
                     let end_pt = Point3::from(frames[arm_idx].0[j + 1]);
@@ -361,8 +462,14 @@ impl RelaxedIKVars {
 
                     // println!("VARS -> {:?}, Link{}, Distance: {:?}", obstacle.data(), j, dis);
                     if dis > 0.0 {
-                        sum += a / (dis + link_radius).powi(2);
+                        if j== last_elem - 1 {
+                            sum += a / (dis + link_radius_finger).powi(2);
+                        }
+                        else {
+                            sum += a / (dis + link_radius).powi(2);
+                        }
                     } else if /*self.objective_mode != "noECA"*/ true {
+                        println!("arm {} joint {}-{} collision!", arm_idx, j, j+1);
                         return true;
                     } else {
                         break;
@@ -401,16 +508,19 @@ impl RelaxedIKVars {
 
     pub fn get_collision_disabled_set(&self) -> BTreeSet<(String, String)> {
         let mut is_disabled: BTreeSet<(String, String)> = BTreeSet::new();
-        for collision in &self.srdf_robot.disable_collisions {
-            let l1: String = collision.link1.clone();
-            let l2: String = collision.link2.clone();
-            if l1 < l2 {
-                is_disabled.insert((l1, l2));
-            }
-            else {
-                is_disabled.insert((l2, l1));
+        if let Some(srdf_robot) = &self.srdf_robot {
+            for collision in &srdf_robot.disable_collisions{
+                let l1: String = collision.link1.clone();
+                let l2: String = collision.link2.clone();
+                if l1 < l2 {
+                    is_disabled.insert((l1, l2));
+                }
+                else {
+                    is_disabled.insert((l2, l1));
+                }
             }
         }
+        
         is_disabled
     }
 }

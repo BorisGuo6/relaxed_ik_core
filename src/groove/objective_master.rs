@@ -1,3 +1,4 @@
+use std::any::Any;
 use crate::groove::objective::*;
 use crate::groove::vars::RelaxedIKVars;
 use std::collections::BTreeSet;
@@ -27,7 +28,7 @@ impl ObjectiveMaster {
     // }
 
 
-    pub fn relaxed_ik(arm_link_names: &Vec<Vec<String>>, chain_lengths: &[usize], chains_def: &Vec<Vec<i64>>, num_dofs: usize, is_active_chain: &[bool], arm_group: &[usize], collision_starting_indices: &[usize], disabled_collisions: &BTreeSet<(String, String)>, num_links_ee_to_tip: i64) -> Self {
+    pub fn relaxed_ik(arm_link_names: &Vec<Vec<String>>, chain_lengths: &[usize], chains_def: &Vec<Vec<i64>>, num_dofs: usize, is_active_chain: &[bool], arm_group: &[usize], collision_starting_indices: &[usize], collision_ending_indices: &[usize], disabled_collisions: &BTreeSet<(String, String)>, num_links_ee_to_tip: i64) -> Self {
         let mut objectives: Vec<Box<dyn ObjectiveTrait + Send>> = Vec::new();
         let mut weight_priors: Vec<f64> = Vec::new();
         let mut weight_names: Vec<String> = Vec::new();
@@ -41,39 +42,43 @@ impl ObjectiveMaster {
             if is_active_chain[i] {
                 // objectives.push(Box::new(MatchEEPosiDoF::new(i, 0)));
                 // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
+                // weight_names.push(String::from("eepos_x"));
                 // objectives.push(Box::new(MatchEEPosiDoF::new(i, 1)));
                 // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
+                // weight_names.push(String::from("eepos_y"));
                 // objectives.push(Box::new(MatchEEPosiDoF::new(i, 2)));
                 // weight_priors.push(50.0);
-                // weight_names.push(String::from("eepos"));
+                // weight_names.push(String::from("eepos_z"));
                 // objectives.push(Box::new(MatchEERotaDoF::new(i, 0)));
                 // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
+                // weight_names.push(String::from("eequat_x"));
                 // objectives.push(Box::new(MatchEERotaDoF::new(i, 1)));
                 // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
+                // weight_names.push(String::from("eequat_y"));
                 // objectives.push(Box::new(MatchEERotaDoF::new(i, 2)));
                 // weight_priors.push(10.0);
-                // weight_names.push(String::from("eequat"));
+                // weight_names.push(String::from("eequat_z"));
 
                 objectives.push(Box::new(MatchEEPosGoals::new(i, num_links_ee_to_tip as usize)));
                 weight_priors.push(50.0);
-                weight_names.push(String::from("eepos"));
+                weight_names.push(format!("eepos_{}",i));
                 objectives.push(Box::new(MatchEEQuatGoals::new(i, num_links_ee_to_tip as usize)));
                 weight_priors.push(30.0);
-                weight_names.push(String::from("eequat"));
+                weight_names.push(format!("eequat_{}",i));
             }
-            objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i])));
-            weight_priors.push(5.0);
+            objectives.push(Box::new(EnvCollision::new(i, collision_starting_indices[i], collision_ending_indices[i])));
+            weight_priors.push(20.0);
             weight_names.push(format!("envcollision_{}",i));
+
+            objectives.push(Box::new(EnvPcdCollision::new(i, collision_starting_indices[i], collision_ending_indices[i])));
+            weight_priors.push(0.0);
+            weight_names.push(format!("envcollision_pcd_{}",i));
             // num_dofs += chain_lengths[i];
         }
 
         for j in 0..num_dofs {
             // println!("JointLimitIdx:{:?}",j);
-            objectives.push(Box::new(EachJointLimits::new(j))); weight_priors.push(1.0);
+            objectives.push(Box::new(EachJointLimits::new(j))); weight_priors.push(0.1);
             weight_names.push(String::from("jointlimit"));
         }
 
@@ -98,7 +103,7 @@ impl ObjectiveMaster {
                     
                     collisions.insert(link_pair);
                     objectives.push(Box::new(SelfCollision::new(i, i,  j, k, false, false))); 
-                    weight_priors.push(0.1);
+                    weight_priors.push(0.5);
                     weight_names.push(String::from("selfcollision"));
                 }
             }
@@ -124,10 +129,10 @@ impl ObjectiveMaster {
                         collisions.insert(link_pair);
                         objectives.push(Box::new(SelfCollision::new(a1, a2,  i, j, is_ee_link_0, is_ee_link_1))); 
                         if is_ee_link_0 && is_ee_link_1 {
-                            weight_priors.push(0.05);
+                            weight_priors.push(0.5);
                             weight_names.push(String::from("selfcollision_ee"));
                         } else {
-                            weight_priors.push(0.1);
+                            weight_priors.push(0.5);
                             weight_names.push(String::from("selfcollision"));
                         }
                         
@@ -137,8 +142,18 @@ impl ObjectiveMaster {
             }
         }
 
-        
+
         Self{objectives, num_chains, weight_priors, weight_names, lite: false, finite_diff_grad: false}
+    }
+
+    pub fn update_collision_end_indices(&mut self, collision_ending_indices: &[usize]) {
+        for objective in &mut self.objectives {
+            let any_ref = objective.as_any_mut();
+            if let Some(env_collision_ref_mut) = any_ref.downcast_mut::<EnvCollision>() {
+                let arm_idx = env_collision_ref_mut.arm_idx;
+                env_collision_ref_mut.update_collision_end_idx(collision_ending_indices);
+            }
+        }
     }
 
     pub fn call(&self, x: &[f64], vars: &RelaxedIKVars) -> f64 {

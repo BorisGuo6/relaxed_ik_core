@@ -35,6 +35,7 @@ impl RelaxedIK {
             &vars.is_active_chain, 
             &vars.arm_group, 
             &vars.collision_starting_indices, 
+            &vars.collision_ending_indices,
             &disabled_collisions,
             vars.num_links_ee_to_tip);
         let groove = OptimizationEngineOpen::new(vars.robot.num_dofs.clone());

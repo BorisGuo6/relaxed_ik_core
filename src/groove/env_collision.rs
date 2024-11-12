@@ -38,10 +38,12 @@ impl CollisionObjectData {
 pub struct RelaxedIKEnvCollision {
     pub world: CollisionWorld<f64, CollisionObjectData>,
     pub link_radius: f64,
+    pub link_radius_finger: f64,
     pub link_handles: Vec<Vec<CollisionObjectSlabHandle>>,
     pub dyn_obstacle_handles: Vec<(CollisionObjectSlabHandle, String)>,
     pub active_pairs: Vec<BTreeMap<CollisionObjectSlabHandle, Vec<CollisionObjectSlabHandle>>>,
     pub active_obstacles: Vec<Vec<(Option<CollisionObjectSlabHandle>, f64)>>,
+    pub pcd_compounds: Vec<(Isometry3<f64>, Compound<f64>)>,
 }
 
 impl RelaxedIKEnvCollision {
@@ -50,6 +52,7 @@ impl RelaxedIKEnvCollision {
         frames: &Vec<(Vec<nalgebra::Vector3<f64>>, Vec<nalgebra::UnitQuaternion<f64>>)>,
     ) -> Self {
         let link_radius = env_collision_file.robot_link_radius;
+        let link_radius_finger = env_collision_file.robot_link_radius_finger;
         let plane_obstacles = env_collision_file.cuboids;
         let sphere_obstacles = env_collision_file.spheres;
         let pcd_obstacles = env_collision_file.pcds;
@@ -72,6 +75,8 @@ impl RelaxedIKEnvCollision {
         let mut link_handles: Vec<Vec<CollisionObjectSlabHandle>> = Vec::new();
         let mut active_pairs: Vec<BTreeMap<CollisionObjectSlabHandle, Vec<CollisionObjectSlabHandle>>> = Vec::new();
         let mut active_obstacles: Vec<Vec<(Option<CollisionObjectSlabHandle>, f64)>> = Vec::new();
+        let mut pcd_compounds: Vec<(Isometry3<f64>, Compound<f64>)> = Vec::new();
+
         for arm_idx in 0..frames.len() {
             let mut handles: Vec<CollisionObjectSlabHandle> = Vec::new();
             let mut obstacles: Vec<(Option<CollisionObjectSlabHandle>, f64)> = Vec::new();
@@ -107,7 +112,7 @@ impl RelaxedIKEnvCollision {
                 dyn_obstacle_handles.push((plane_handle.0, plane_handle.1.data().name.clone()));
             }
         }
-
+        // println!("sphere_obstacles: {:?}",sphere_obstacles);
         for i in 0..sphere_obstacles.len() {
             let sphere_obs = &sphere_obstacles[i];
             let sphere = ShapeHandle::new(Ball::new(sphere_obs.radius));
@@ -120,6 +125,9 @@ impl RelaxedIKEnvCollision {
                 dyn_obstacle_handles.push((sphere_handle.0, sphere_handle.1.data().name.clone()));
             }
         }
+        
+        // use constant radius for now
+        let pcd_ball_radius = 0.01;
 
         for i in 0..pcd_obstacles.len() {
             let pcd_obs = &pcd_obstacles[i];
@@ -145,9 +153,22 @@ impl RelaxedIKEnvCollision {
             if pcd_obs.is_dynamic {
                 dyn_obstacle_handles.push((pcd_handle.0, pcd_handle.1.data().name.clone()));
             }
+
+            // Add Compound of spheres to represent point cloud in a new way
+            let mut parts: Vec<(Isometry3<f64>, ShapeHandle<f64>)> = Vec::new();
+            for sphere_obs in &pcd_obs.points {
+                let center_iso = Isometry3::new(Vector3::new(sphere_obs.tx, sphere_obs.ty, sphere_obs.tz), nalgebra::zero());
+                let ball_handle = ShapeHandle::new(Ball::new(pcd_ball_radius));
+                parts.push((center_iso, ball_handle));
+            }
+            let pcd_compound = Compound::new(parts);
+            pcd_compounds.push((pcd_pos.clone(), pcd_compound));
         }
-        
-        return Self{world, link_radius, link_handles, dyn_obstacle_handles, active_pairs, active_obstacles};
+
+
+
+        // println!("active obs: {:?}",active_obstacles);
+        return Self{world, link_radius, link_radius_finger, link_handles, dyn_obstacle_handles, active_pairs, active_obstacles, pcd_compounds};
     }
 
     pub fn update_links(
